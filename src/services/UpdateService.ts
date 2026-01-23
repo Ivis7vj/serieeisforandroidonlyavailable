@@ -1,8 +1,9 @@
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../utils/firebase';
 
-const VERSION_URL = 'https://raw.githubusercontent.com/Ivis7vj/serieeisforandroidonly/main/version.json';
-const DOWNLOAD_URL = 'https://seriee.vercel.app'; // Or the direct GitHub link
+const DOWNLOAD_URL = 'https://seriee.vercel.app';
 
 export interface UpdateInfo {
     version: string;
@@ -13,18 +14,28 @@ export interface UpdateInfo {
 export class UpdateService {
     static async checkForUpdate(): Promise<UpdateInfo | null> {
         try {
-            const response = await fetch(`${VERSION_URL}?t=${Date.now()}`);
-            if (!response.ok) return null;
+            console.log('[UpdateService] Checking Firestore for updates...');
 
-            const remoteConfig: UpdateInfo = await response.json();
+            // Fetch version info from Firestore: collection 'config', document 'version'
+            const versionDocRef = doc(db, 'config', 'version');
+            const versionSnap = await getDoc(versionDocRef);
+
+            if (!versionSnap.exists()) {
+                console.log('[UpdateService] No version document found in Firestore (config/version)');
+                return null;
+            }
+
+            const remoteConfig = versionSnap.data() as UpdateInfo;
             const currentVersion = Constants.expoConfig?.version || '0.0.0';
+
+            console.log(`[UpdateService] Remote: ${remoteConfig.version}, Local: ${currentVersion}`);
 
             // Simple semantic version comparison (v1 < v2)
             if (this.isNewer(remoteConfig.version, currentVersion)) {
                 return remoteConfig;
             }
         } catch (error) {
-            console.log('[UpdateService] Check failed:', error);
+            console.error('[UpdateService] Check failed:', error);
         }
         return null;
     }
