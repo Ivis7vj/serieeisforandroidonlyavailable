@@ -1,5 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { UpdateService, UpdateInfo } from '../src/services/UpdateService';
+import { UpdatePopup } from '../src/components/updates/UpdatePopup';
 
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
@@ -194,6 +196,12 @@ export default function RootLayout() {
             <OnboardingProvider>
 
               <RootLayoutNav appReady={appReady} />
+              {updateInfo && (
+                <UpdatePopup
+                  updateInfo={updateInfo}
+                  onDismiss={() => setUpdateInfo(null)}
+                />
+              )}
             </OnboardingProvider>
           </ToastProvider>
         </AuthProvider>
