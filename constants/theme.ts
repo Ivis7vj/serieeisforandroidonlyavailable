@@ -1,0 +1,26 @@
+export const Colors = {
+  light: {
+    text: '#000000',
+    background: '#FFFFFF',
+    secondaryBackground: '#F4F4F4',
+    tertiaryBackground: '#E0E0E0',
+    tint: '#E6B800',
+    icon: '#666666',
+    tabIconDefault: '#666666',
+    tabIconSelected: '#E6B800',
+    border: '#DDDDDD',
+    muted: '#666666',
+  },
+  dark: {
+    text: '#FFFFFF',
+    background: '#000000',
+    secondaryBackground: '#111111',
+    tertiaryBackground: '#222222',
+    tint: '#FFCC00',
+    icon: '#888888',
+    tabIconDefault: '#888888',
+    tabIconSelected: '#FFCC00',
+    border: '#333333',
+    muted: '#888888',
+  },
+};

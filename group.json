@@ -1,0 +1,26 @@
+[
+  {
+    "id": "019bdb5c-5f67-7440-a21c-1fe1748f7a97",
+    "createdAt": "2026-01-20T12:23:42.695Z",
+    "group": "4ebccd50-f3a5-4312-b161-a0cc75acac94",
+    "branch": "production",
+    "message": "Test: OTA Green Banner (Channel Logic Fix)",
+    "runtimeVersion": "1.0.0",
+    "platform": "ios",
+    "manifestPermalink": "https://u.expo.dev/update/019bdb5c-5f67-7440-a21c-1fe1748f7a97",
+    "isRollBackToEmbedded": false,
+    "gitCommitHash": "354b7e5c0f0ed3db396149452e065d59d19ba3fe"
+  },
+  {
+    "id": "019bdb5c-5f67-7650-ac93-e75882fd3356",
+    "createdAt": "2026-01-20T12:23:42.695Z",
+    "group": "4ebccd50-f3a5-4312-b161-a0cc75acac94",
+    "branch": "production",
+    "message": "Test: OTA Green Banner (Channel Logic Fix)",
+    "runtimeVersion": "1.0.0",
+    "platform": "android",
+    "manifestPermalink": "https://u.expo.dev/update/019bdb5c-5f67-7650-ac93-e75882fd3356",
+    "isRollBackToEmbedded": false,
+    "gitCommitHash": "354b7e5c0f0ed3db396149452e065d59d19ba3fe"
+  }
+]

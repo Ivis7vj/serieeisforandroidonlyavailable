@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Android Build artifacts (The heavy stuff)
+.gradle/
+build/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/app/intermediates/
+android/app/generated/
+*.apk
+*.aab
+
+# Native Creds
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Metro
+.metro-health-check*
+
+# macOS
+.DS_Store
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo

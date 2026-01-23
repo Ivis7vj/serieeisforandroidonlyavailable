@@ -1,0 +1,203 @@
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack } from 'expo-router';
+
+import { StatusBar } from 'expo-status-bar';
+import 'react-native-reanimated';
+import "../global.css";
+
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AuthProvider, useAuth } from '@/context/auth-context';
+import { useEffect, useState } from 'react';
+import { useSegments, useRouter } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync();
+
+export const unstable_settings = {
+  anchor: '(tabs)',
+};
+
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { Image } from 'expo-image';
+import { OnboardingProvider } from '@/context/onboarding-context';
+import { useFonts } from 'expo-font';
+import { Anton_400Regular } from '@expo-google-fonts/anton';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GlobalErrorBoundary } from '@/components/security/GlobalErrorBoundary';
+import { ToastProvider } from '@/context/toast-context';
+
+
+
+const CustomDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#000',
+    card: '#000',
+  },
+};
+
+function RootLayoutNav({ appReady }: { appReady: boolean }) {
+  const { currentUser, isLoading: authLoading, isSigningUp, isGuest } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  // Safety timeout for the 'loading' state
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLoadingTimeout(true), 4000);
+    return () => clearTimeout(t);
+  }, [authLoading]);
+
+  const loading = authLoading && !loadingTimeout;
+
+  useEffect(() => {
+    if (loading || !appReady) return;
+
+    const rootSegment = segments?.[0];
+    const isAtLogin = rootSegment === 'login';
+    const isAtTabs = rootSegment === '(tabs)';
+    const isAtRoot = !rootSegment;
+
+    // 1. Handle Redirections FIRST
+    if (!currentUser && !isGuest) {
+      if (!isAtLogin && !isSigningUp && !isAtRoot) {
+        if (isAtTabs) {
+          console.log('Root: Redirecting to login (unauthenticated)');
+          router.replace('/login');
+          return; // Don't hide splash yet
+        }
+      }
+    }
+
+    if (currentUser && !isSigningUp) {
+      if (isAtLogin || isAtRoot) {
+        console.log('Root: Redirecting to (tabs) (authenticated)');
+        router.replace('/(tabs)');
+        return; // Don't hide splash yet
+      }
+    }
+
+    // Aggressive Splash Hide
+    const hideSplash = async () => {
+      try {
+        console.log('Root: Attempting splash hide');
+        await SplashScreen.hideAsync();
+      } catch (e) {
+        console.log('Root: Splash hide error', e);
+      }
+    };
+
+    hideSplash();
+  }, [currentUser, loading, segments, appReady]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FFCC00" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <ThemeProvider value={CustomDarkTheme}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+          <Stack.Screen name="login" />
+          <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: '#000' } }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', contentStyle: { backgroundColor: '#000' } }} />
+          <Stack.Screen name="series/[id]" />
+          <Stack.Screen name="friend-activity-detail" options={{ presentation: 'modal', title: 'Activity' }} />
+          <Stack.Screen name="watchlist" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="banner-search" />
+          <Stack.Screen name="share-sticker/index" />
+          <Stack.Screen
+            name="profile-section"
+            options={{
+              animation: 'slide_from_right',
+              animationDuration: 4000,
+              contentStyle: { backgroundColor: '#000' },
+            }}
+          />
+          <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
+        </Stack>
+        <StatusBar style="light" />
+      </ThemeProvider>
+    </View>
+  );
+}
+
+
+
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    'Anton-Regular': Anton_400Regular,
+    'Poppins-BlackItalic': require('../assets/fonts/Poppins-BlackItalic.ttf'),
+    'Ultra-Regular': require('../assets/fonts/Ultra-Regular.ttf'),
+    'AlfaSlabOne-Regular': require('../assets/fonts/AlfaSlabOne-Regular.ttf'),
+    'Oswald-Bold': require('../assets/fonts/Oswald-VariableFont_wght.ttf'),
+    'Boldonse-Regular': require('../assets/fonts/Boldonse-Regular.ttf'),
+    'Poppins-Bold': require('../assets/fonts/poppins.bold.ttf'),
+  });
+
+
+
+  // Emergency safety for fonts - if fonts don't load in 4s, we show the UI anyway
+  const [fontTimeout, setFontTimeout] = useState(false);
+
+
+  useEffect(() => {
+    console.log('Root: Layout mounted');
+
+    // Safety timeout for fonts (1s)
+    const t = setTimeout(() => {
+      console.log('Root: Font timeout reached');
+      setFontTimeout(true);
+    }, 1000);
+
+    // 🛡️ COMMIT SIGNAL
+
+
+    // CRITICAL: Force hide splash screen after 1.0 seconds NO MATTER WHAT.
+    // This catches cases where fonts/auth fail to signal ready.
+    const splashFailsafe = setTimeout(() => {
+      console.log('Root: Forcing splash hide (failsafe)');
+      SplashScreen.hideAsync().catch(() => { });
+    }, 1000);
+
+    return () => {
+      clearTimeout(t);
+      clearTimeout(splashFailsafe);
+    };
+  }, []);
+
+  const appReady = (fontsLoaded || fontTimeout);
+
+  if (!appReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FFCC00" />
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <OnboardingProvider>
+
+              <RootLayoutNav appReady={appReady} />
+            </OnboardingProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}

@@ -1,0 +1,7 @@
+e:\mernstack_internship\letterboard\native\app\(tabs)\public-profile\[id].tsx
+e:\mernstack_internship\letterboard\native\app\(tabs)\series\[id].tsx
+e:\mernstack_internship\letterboard\native\app\(tabs)\series-graph\[id].tsx
+e:\mernstack_internship\letterboard\native\app\diary\[id].tsx
+e:\mernstack_internship\letterboard\native\app\person\[id].tsx
+e:\mernstack_internship\letterboard\native\app\series-credits\[id].tsx
+e:\mernstack_internship\letterboard\native\app\series-seasons\[id].tsx
