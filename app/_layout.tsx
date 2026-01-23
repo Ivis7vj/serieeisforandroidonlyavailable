@@ -151,6 +151,13 @@ export default function RootLayout() {
 
   // Emergency safety for fonts - if fonts don't load in 4s, we show the UI anyway
   const [fontTimeout, setFontTimeout] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    UpdateService.checkForUpdate().then(info => {
+      if (info) setUpdateInfo(info);
+    });
+  }, []);
 
 
   useEffect(() => {
