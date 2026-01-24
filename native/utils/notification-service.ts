@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import { db } from './firebase';
 import { doc, updateDoc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { supabase } from './supabase';
@@ -38,9 +38,10 @@ export const notificationService = {
         }
 
         try {
-            console.log('[NotificationService] Getting Expo Push Token...');
-            const token = (await Notifications.getExpoPushTokenAsync()).data;
-            console.log('[NotificationService] Expo Push Token obtained:', token);
+            console.log('[NotificationService] Getting Native Push Token...');
+            // In release APKs, we use getDevicePushTokenAsync to get the native FCM token
+            const token = (await Notifications.getDevicePushTokenAsync()).data;
+            console.log('[NotificationService] Native Push Token obtained:', token);
 
             // Save to Firestore
             if (userId) {
@@ -52,11 +53,15 @@ export const notificationService = {
                     lastTokenUpdate: new Date().toISOString()
                 });
                 console.log('[NotificationService] Firestore update complete');
+
+                // SHOW ALERT ON PHONE FOR DEBUGGING
+                Alert.alert('Push Registered!', 'Token starts with: ' + token.substring(0, 10));
             }
 
             return token;
         } catch (error: any) {
             console.error('[NotificationService] Error getting token:', error.message);
+            Alert.alert('Push Registration Error', error.message);
             return null;
         }
     },
