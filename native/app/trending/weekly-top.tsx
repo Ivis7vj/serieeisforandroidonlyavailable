@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, Modal, Dimensions, Platform, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { ArrowLeft, TrendingUp, Info, Clock } from 'lucide-react-native';
 import { tmdbApi } from '@/utils/tmdb';
 import { supabase } from '@/utils/supabase';
