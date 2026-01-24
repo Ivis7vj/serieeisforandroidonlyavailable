@@ -983,8 +983,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     logoText: {
-        fontSize: 72,
-        fontFamily: 'Anton',
+        fontSize: 48,
+        fontFamily: 'Anton-Regular',
         color: '#FFFFFF',
         letterSpacing: 2,
         textAlign: 'center',
