@@ -8,7 +8,7 @@ import { useAuth } from '@/context/auth-context';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { BlurView } from 'expo-blur';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const POSTER_GAP = 10;
 const POSTERS_PER_ROW = 4;
 const POSTER_WIDTH = (width - 40 - (POSTER_GAP * (POSTERS_PER_ROW - 1))) / POSTERS_PER_ROW;

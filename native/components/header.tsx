@@ -12,7 +12,7 @@ import {
     ActivityIndicator
 } from 'react-native';
 import { useGlobalSearchParams, useRouter, usePathname, useNavigation } from 'expo-router';
-import { Search, ArrowLeft, X, CheckCircle, AlertCircle, MoreVertical } from 'lucide-react-native';
+import { Search, ArrowLeft, X, CheckCircle, AlertCircle, MoreVertical, TrendingUp } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
