@@ -244,12 +244,13 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     pageTitle: {
-        fontSize: 36,
+        fontSize: 22,
         fontWeight: '900',
         color: '#FFF',
         fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
-        letterSpacing: -1.8,
-        marginBottom: 12,
+        letterSpacing: -0.5,
+        marginTop: 10,
+        marginBottom: 20,
     },
     timerContainer: {
         flex: 1,
