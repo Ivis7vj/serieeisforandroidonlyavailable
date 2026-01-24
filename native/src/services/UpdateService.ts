@@ -36,16 +36,7 @@ export class UpdateService {
             const currentVersion = Constants.expoConfig?.version || '0.0.0';
 
             // DEBUG LOGS
-            console.log('[UpdateService] -------- DEBUG CHECK --------');
-            console.log('[UpdateService] Local Version:', currentVersion);
-            console.log('[UpdateService] Firestore Raw Values:', {
-                version: remoteVersion,
-                mandatory,
-                changelog,
-                downloadUrl
-            });
-            console.log('[UpdateService] Is Newer?', this.isNewer(remoteVersion, currentVersion));
-            console.log('[UpdateService] -----------------------------');
+            console.log(`[UpdateService] Remote: ${remoteVersion}, Local: ${currentVersion}`);
 
             // 3. Comparison
             if (remoteVersion && this.isNewer(remoteVersion, currentVersion)) {
@@ -54,31 +45,30 @@ export class UpdateService {
                     mandatory: mandatory || false,
                     notes: changelog || "New features and minor bug fixes."
                 };
-            } else {
-                console.log('[UpdateService] No update needed (Remote <= Local)');
-            }
-        } catch (error) {
-            console.error('[UpdateService] Firestore check failed:', error);
+            };
         }
+        } catch(error) {
+        console.error('[UpdateService] Firestore check failed:', error);
+    }
         return null;
     }
 
     private static isNewer(remote: string, local: string): boolean {
-        if (!remote) return false;
-        const r = remote.split('.').map(Number);
-        const l = local.split('.').map(Number);
+    if (!remote) return false;
+    const r = remote.split('.').map(Number);
+    const l = local.split('.').map(Number);
 
-        for (let i = 0; i < 3; i++) {
-            if ((r[i] || 0) > (l[i] || 0)) return true;
-            if ((r[i] || 0) < (l[i] || 0)) return false;
-        }
-        return false;
+    for (let i = 0; i < 3; i++) {
+        if ((r[i] || 0) > (l[i] || 0)) return true;
+        if ((r[i] || 0) < (l[i] || 0)) return false;
     }
+    return false;
+}
 
     static async openDownloadPage() {
-        // We re-fetch or use default if we can't get it easily, but usually the link is familiar
-        // Ideally we pass the link from the popup, but for now we fallback safely
-        console.log('[UpdateService] Opening download page:', DEFAULT_APK_URL);
-        await Linking.openURL(DEFAULT_APK_URL);
-    }
+    // We re-fetch or use default if we can't get it easily, but usually the link is familiar
+    // Ideally we pass the link from the popup, but for now we fallback safely
+    console.log('[UpdateService] Opening download page:', DEFAULT_APK_URL);
+    await Linking.openURL(DEFAULT_APK_URL);
+}
 }
