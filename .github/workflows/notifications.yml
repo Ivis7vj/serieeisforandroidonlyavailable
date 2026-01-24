@@ -1,0 +1,37 @@
+name: SERIEE Notifications
+
+on:
+  schedule:
+    - cron: '0 8 * * *'    # Daily at 8:00 AM UTC
+    - cron: '0 18 * * 0'   # Sunday at 6:00 PM UTC
+  workflow_dispatch:        # Allows manual trigger
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          cd scripts
+          npm init -y
+          npm install firebase-admin axios @supabase/supabase-js
+
+      - name: Run Episode Check
+        if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/notify.js daily
+
+      - name: Run Weekly Roundup
+        if: github.event.schedule == '0 18 * * 0' || github.event_name == 'workflow_dispatch'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/notify.js weekly
