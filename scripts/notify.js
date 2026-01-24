@@ -98,6 +98,16 @@ async function runWeekly() {
     }
 }
 
+/**
+ * MAIN: Daily Run (Episode/Season Alerts)
+ */
+async function runDaily() {
+    console.log('Running daily release checks...');
+    // Note: Daily release logic implementation would go here, 
+    // ensuring it checks userDoc.data().notifyNewEpisodes === true 
+    // and userDoc.data().notifyNewSeasons === true
+}
+
 // Logic switch
 const task = process.argv[2];
 if (task === 'daily') runDaily();

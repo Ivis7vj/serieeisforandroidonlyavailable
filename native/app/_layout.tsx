@@ -180,24 +180,24 @@ export default function RootLayout() {
   }, []);
 
 
+  // 🛡️ Notification Permissions
+  useEffect(() => {
+    const requestPermissions = async () => {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.log('Root: Failed to get permissions for push notifications!');
+      }
+    };
+    requestPermissions();
+  }, []);
+
   useEffect(() => {
     console.log('Root: Layout mounted');
-
-    // 🛡️ Notification Permissions
-    useEffect(() => {
-      const requestPermissions = async () => {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
-        }
-        if (finalStatus !== 'granted') {
-          console.log('Root: Failed to get push token for push notification!');
-        }
-      };
-      requestPermissions();
-    }, []);
 
     // Safety timeout for fonts (1s)
     const t = setTimeout(() => {

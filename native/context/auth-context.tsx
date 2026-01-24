@@ -79,25 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
-        // --- 1. SESSION HARDENING (Background Timeout) ---
-        const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-            if (appState.current.match(/active/) && nextAppState === 'background') {
-                backgroundTimestamp.current = Date.now();
-            }
-            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-                if (backgroundTimestamp.current && user) {
-                    const THIRTY_MINS = 30 * 60 * 1000;
-                    const elapsed = Date.now() - backgroundTimestamp.current;
-                    if (elapsed > THIRTY_MINS) {
-                        console.log('[Auth] Session expired due to background inactivity');
-                        logout();
-                    }
-                }
-                backgroundTimestamp.current = null;
-            }
-            appState.current = nextAppState;
-        });
-
         if (!auth) {
             console.error("Auth instance not found");
             setIsLoading(false);
@@ -212,7 +193,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return () => {
                 unsubAuth();
                 if (unsubUser) unsubUser();
-                subscription.remove();
             };
         } catch (e) {
             console.error("Auth init error:", e);
