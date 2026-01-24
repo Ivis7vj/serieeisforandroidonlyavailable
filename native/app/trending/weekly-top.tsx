@@ -7,6 +7,7 @@ import { supabase } from '@/utils/supabase';
 import { useAuth } from '@/context/auth-context';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
 const POSTER_GAP = 10;
@@ -16,6 +17,7 @@ const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
 
 export default function WeeklyTopScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { globalPosters } = useAuth();
     const [series, setSeries] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -160,7 +162,7 @@ export default function WeeklyTopScreen() {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top, height: insets.top + 56 }]}>
                 <Pressable style={styles.backButton} onPress={() => router.back()}>
                     <ArrowLeft color="#FFF" size={28} />
                 </Pressable>
