@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
-import { remoteConfig } from '@/utils/firebase';
-import { fetchAndActivate, getString, getBoolean } from 'firebase/remote-config';
+import { db } from '@/utils/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const DEFAULT_APK_URL = 'https://seriee.vercel.app/app-release.apk';
 
@@ -14,24 +14,31 @@ export interface UpdateInfo {
 export class UpdateService {
     static async checkForUpdate(): Promise<UpdateInfo | null> {
         try {
-            console.log('[UpdateService] Checking Remote Config for updates...');
+            console.log('[UpdateService] Checking Firestore for updates...');
 
-            // 1. Fetch and activate (Interval 0 ensures real-time check for development/QA)
-            await fetchAndActivate(remoteConfig);
-            remoteConfig.settings.minimumFetchIntervalMillis = 0;
+            // 1. Fetch from Firestore (Collection: app_config, Doc: android)
+            const docRef = doc(db, 'app_config', 'android');
+            const docSnap = await getDoc(docRef);
 
-            // 2. Get values from Remote Config
-            const remoteVersion = getString(remoteConfig, 'version');
-            const changelog = getString(remoteConfig, 'changelog');
-            const mandatory = getBoolean(remoteConfig, 'mandatory');
-            const downloadUrl = getString(remoteConfig, 'download_url');
+            if (!docSnap.exists()) {
+                console.warn('[UpdateService] Config document not found in Firestore');
+                return null;
+            }
+
+            const data = docSnap.data();
+
+            // 2. Get values
+            const remoteVersion = data.version;
+            const changelog = data.changelog;
+            const mandatory = data.mandatory;
+            const downloadUrl = data.download_url;
 
             const currentVersion = Constants.expoConfig?.version || '0.0.0';
 
             // DEBUG LOGS
             console.log('[UpdateService] -------- DEBUG CHECK --------');
             console.log('[UpdateService] Local Version:', currentVersion);
-            console.log('[UpdateService] Remote Config Raw Values:', {
+            console.log('[UpdateService] Firestore Raw Values:', {
                 version: remoteVersion,
                 mandatory,
                 changelog,
@@ -44,19 +51,20 @@ export class UpdateService {
             if (remoteVersion && this.isNewer(remoteVersion, currentVersion)) {
                 return {
                     version: remoteVersion,
-                    mandatory: mandatory,
+                    mandatory: mandatory || false,
                     notes: changelog || "New features and minor bug fixes."
                 };
             } else {
                 console.log('[UpdateService] No update needed (Remote <= Local)');
             }
         } catch (error) {
-            console.error('[UpdateService] Remote Config check failed:', error);
+            console.error('[UpdateService] Firestore check failed:', error);
         }
         return null;
     }
 
     private static isNewer(remote: string, local: string): boolean {
+        if (!remote) return false;
         const r = remote.split('.').map(Number);
         const l = local.split('.').map(Number);
 
@@ -68,8 +76,9 @@ export class UpdateService {
     }
 
     static async openDownloadPage() {
-        const downloadUrl = getString(remoteConfig, 'download_url') || DEFAULT_APK_URL;
-        console.log('[UpdateService] Opening download page:', downloadUrl);
-        await Linking.openURL(downloadUrl);
+        // We re-fetch or use default if we can't get it easily, but usually the link is familiar
+        // Ideally we pass the link from the popup, but for now we fallback safely
+        console.log('[UpdateService] Opening download page:', DEFAULT_APK_URL);
+        await Linking.openURL(DEFAULT_APK_URL);
     }
 }
