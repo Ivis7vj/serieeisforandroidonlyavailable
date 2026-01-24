@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { remoteConfig } from '@/utils/firebase';
-import { fetchAndActivate, getStringValue, getBooleanValue } from 'firebase/remote-config';
+import { fetchAndActivate, getString, getBoolean } from 'firebase/remote-config';
 
 const DEFAULT_APK_URL = 'https://seriee.vercel.app/app-release.apk';
 
@@ -20,9 +20,9 @@ export class UpdateService {
             await fetchAndActivate(remoteConfig);
 
             // 2. Get values from Remote Config (matching your screenshot)
-            const remoteVersion = getStringValue(remoteConfig, 'version');
-            const changelog = getStringValue(remoteConfig, 'changelog');
-            const mandatory = getBooleanValue(remoteConfig, 'mandatory') || false; // Set to false if missing
+            const remoteVersion = getString(remoteConfig, 'version');
+            const changelog = getString(remoteConfig, 'changelog');
+            const mandatory = getBoolean(remoteConfig, 'mandatory');
 
             const currentVersion = Constants.expoConfig?.version || '0.0.0';
 
@@ -54,7 +54,7 @@ export class UpdateService {
     }
 
     static async openDownloadPage() {
-        const downloadUrl = getStringValue(remoteConfig, 'download_url') || DEFAULT_APK_URL;
+        const downloadUrl = getString(remoteConfig, 'download_url') || DEFAULT_APK_URL;
         console.log('[UpdateService] Opening download page:', downloadUrl);
         await Linking.openURL(downloadUrl);
     }
