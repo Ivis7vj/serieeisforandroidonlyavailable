@@ -102,81 +102,93 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     hideSplash();
   }, [currentUser, loading, segments, appReady, isGuest]);
 
-  // Handle Notifications Registration
-  useEffect(() => {
-    console.log('[Root] Checking Notification Auth State:', { hasUser: !!currentUser, appReady, loading });
-    if (currentUser && appReady && !loading) {
-      console.log('[Root] Triggering token registration for:', currentUser.uid);
+  if (currentUser && appReady && !loading) {
+    // Check permissions BEFORE registering to decide if we show the "You get notifications" toast
+    Notifications.getPermissionsAsync().then(({ status: existingStatus }) => {
       import('@/utils/notification-service').then(({ notificationService }) => {
         notificationService.registerForPushNotificationsAsync(currentUser.uid)
           .then(token => {
-            if (token) setToastVisible(true);
+            // Only show the registration toast if permission was NOT granted initially (new signup/allow)
+            if (token && existingStatus !== 'granted') {
+              setToastVisible(true);
+            }
           })
           .catch(err => console.error('[Root] Token registration error:', err));
       });
-    }
-  }, [currentUser, appReady, loading]);
-
-  // Handle Notification Responses
-  useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      const data = response.notification.request.content.data;
-      if (data?.route) {
-        // Example route: /series/123?season=1&episode=4
-        let path = data.route;
-        if (data.season) path += `?season=${data.season}`;
-        if (data.episode) path += `&episode=${data.episode}`;
-
-        console.log('[NotificationListener] Navigating to:', path);
-        router.push(path as any);
-      }
     });
-
-    return () => subscription.remove();
-  }, []);
-
-  if (loading || !appReady) {
-    return null; // Keep splash visible by rendering nothing
   }
+}, [currentUser, appReady, loading]);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <ThemeProvider value={CustomDarkTheme}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: '#000' } }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', contentStyle: { backgroundColor: '#000' } }} />
-          <Stack.Screen name="series/[id]" />
-          <Stack.Screen name="friend-activity-detail" options={{ presentation: 'modal', title: 'Activity' }} />
-          <Stack.Screen name="watchlist" />
-          <Stack.Screen name="settings" />
-          <Stack.Screen name="edit-profile" />
-          <Stack.Screen name="banner-search" />
-          <Stack.Screen name="share-sticker/index" />
-          <Stack.Screen
-            name="profile-section"
-            options={{
-              animation: 'slide_from_right',
-              animationDuration: 4000,
-              contentStyle: { backgroundColor: '#000' },
-            }}
-          />
-          <Stack.Screen
-            name="trending/weekly-top"
-            options={{
-              headerShown: false,
-              animation: 'slide_from_bottom',
-              presentation: 'modal',
-              gestureEnabled: true
-            }}
-          />
-          <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
-        </Stack>
-        <NotificationToast visible={toastVisible} onHide={() => setToastVisible(false)} />
-        <StatusBar style="light" />
-      </ThemeProvider>
-    </View>
-  );
+// Handle Incoming Notifications (In-App)
+useEffect(() => {
+  // When app is open and notification arrives
+  const subscription = Notifications.addNotificationReceivedListener(notification => {
+    console.log('[Root] Notification received in foreground');
+    setToastVisible(true); // Show our custom black-logo toast
+  });
+  return () => subscription.remove();
+}, []);
+
+// Handle Notification Responses
+useEffect(() => {
+  const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
+    const data = response.notification.request.content.data;
+    if (data?.route) {
+      // Example route: /series/123?season=1&episode=4
+      let path = data.route;
+      if (data.season) path += `?season=${data.season}`;
+      if (data.episode) path += `&episode=${data.episode}`;
+
+      console.log('[NotificationListener] Navigating to:', path);
+      router.push(path as any);
+    }
+  });
+
+  return () => subscription.remove();
+}, []);
+
+if (loading || !appReady) {
+  return null; // Keep splash visible by rendering nothing
+}
+
+return (
+  <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <ThemeProvider value={CustomDarkTheme}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: '#000' } }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', contentStyle: { backgroundColor: '#000' } }} />
+        <Stack.Screen name="series/[id]" />
+        <Stack.Screen name="friend-activity-detail" options={{ presentation: 'modal', title: 'Activity' }} />
+        <Stack.Screen name="watchlist" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="banner-search" />
+        <Stack.Screen name="share-sticker/index" />
+        <Stack.Screen
+          name="profile-section"
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 4000,
+            contentStyle: { backgroundColor: '#000' },
+          }}
+        />
+        <Stack.Screen
+          name="trending/weekly-top"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+            gestureEnabled: true
+          }}
+        />
+        <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
+      </Stack>
+      <NotificationToast visible={toastVisible} onHide={() => setToastVisible(false)} />
+      <StatusBar style="light" />
+    </ThemeProvider>
+  </View>
+);
 }
 
 

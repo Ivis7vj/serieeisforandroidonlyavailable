@@ -8,7 +8,7 @@ import { supabase } from './supabase';
 // Configure how notifications are handled when the app is in the foreground
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldShowAlert: true,
+        shouldShowAlert: false, // Suppress system alert in foreground (we use custom toast)
         shouldPlaySound: true,
         shouldSetBadge: false,
     }),

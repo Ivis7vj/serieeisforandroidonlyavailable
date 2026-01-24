@@ -20,14 +20,25 @@ export class UpdateService {
             await fetchAndActivate(remoteConfig);
             remoteConfig.settings.minimumFetchIntervalMillis = 0;
 
-            // 2. Get values from Remote Config (matching your screenshot)
+            // 2. Get values from Remote Config
             const remoteVersion = getString(remoteConfig, 'version');
             const changelog = getString(remoteConfig, 'changelog');
             const mandatory = getBoolean(remoteConfig, 'mandatory');
+            const downloadUrl = getString(remoteConfig, 'download_url');
 
             const currentVersion = Constants.expoConfig?.version || '0.0.0';
 
-            console.log(`[UpdateService] Remote: ${remoteVersion}, Local: ${currentVersion}`);
+            // DEBUG LOGS
+            console.log('[UpdateService] -------- DEBUG CHECK --------');
+            console.log('[UpdateService] Local Version:', currentVersion);
+            console.log('[UpdateService] Remote Config Raw Values:', {
+                version: remoteVersion,
+                mandatory,
+                changelog,
+                downloadUrl
+            });
+            console.log('[UpdateService] Is Newer?', this.isNewer(remoteVersion, currentVersion));
+            console.log('[UpdateService] -----------------------------');
 
             // 3. Comparison
             if (remoteVersion && this.isNewer(remoteVersion, currentVersion)) {
