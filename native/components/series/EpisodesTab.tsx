@@ -83,7 +83,7 @@ const EpisodesTab: React.FC<EpisodesTabProps> = ({
                 return (
                     <View key={episode.id}>
                         <Pressable
-                            style={[styles.episodeItem, isHighlighted ? styles.highlightedItem : null]}
+                            style={styles.episodeItem}
                             onPress={() => {
                                 router.push(`/episode/${seriesId}/${episode.season_number}/${episode.episode_number}`);
                             }}

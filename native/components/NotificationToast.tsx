@@ -75,7 +75,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, t
                     </View>
                     <View style={styles.textContainer}>
                         {title ? <Text style={styles.title} numberOfLines={1}>{title}</Text> : null}
-                        <Text style={styles.message} numberOfLines={2}>{message || 'You have a new notification'}</Text>
+                        <Text style={styles.message}>{message || 'You have a new notification'}</Text>
                     </View>
                 </View>
             </View>
@@ -89,9 +89,9 @@ const styles = StyleSheet.create({
         top: 40,
         alignSelf: 'center',
         zIndex: 9999,
-        // Dynamic width constraints
-        minWidth: 160,
-        maxWidth: width - 60,
+        // Dynamic width constraints - WIDER LANDSCAPE LOOK
+        width: '92%',
+        maxWidth: 600, // Cap it for tablets but allow wide on phones
         borderRadius: 24, // High radius for capsule look
         shadowColor: "#000",
         shadowOffset: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     },
     solidBg: {
         backgroundColor: '#000000', // Pure black
-        paddingVertical: 10,
+        paddingVertical: 12, // Slightly more vertical padding for multiline text
         paddingHorizontal: 16,
         borderRadius: 24,
     },
@@ -136,12 +136,12 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
-        marginBottom: 1,
+        marginBottom: 2,
     },
     message: {
         color: '#E0E0E0',
         fontSize: 12, // Compact size
         fontWeight: '400',
-        lineHeight: 14,
+        lineHeight: 16, // Better readability for multiline
     }
 });
