@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+.agent/
+client/node_modules/
+native/node_modules/
+native/android/build/
+native/android/.gradle/
+*.apk
+*.log
+.DS_Store
