@@ -1,0 +1,34 @@
+Initialized native services in: C:\Users\vishw\.gradle\native
+Initialized jansi services in: C:\Users\vishw\.gradle\native
+The client will now receive all logging from the daemon (pid: 17640). The daemon log file: C:\Users\vishw\.gradle\daemon\8.14.3\daemon-17640.out.log
+Starting 10th build in daemon [uptime: 17 mins 17.939 secs, performance: 100%, GC rate: 0.00/s, heap usage: 0% of 4 GiB, non-heap usage: 5% of 1 GiB]
+Using 12 worker leases.
+Now considering [E:\mernstack_internship\letterboard\native\android] as hierarchies to watch
+Watching the file system is configured to be enabled if available
+File system watching is active
+Starting Build
+Starting process 'command 'node''. Working directory: E:\mernstack_internship\letterboard\native\android Command: node --print require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })
+Successfully started process 'command 'node''
+Starting process 'command 'node''. Working directory: E:\mernstack_internship\letterboard\native\android Command: node --print require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })
+Successfully started process 'command 'node''
+Now considering [E:\mernstack_internship\letterboard\native\node_modules\@react-native\gradle-plugin, E:\mernstack_internship\letterboard\native\android] as hierarchies to watch
+Caching disabled for Kotlin DSL script compilation (Settings/TopLevel/stage1) because:
+  Build cache is disabled
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Settings file 'E:\mernstack_internship\letterboard\native\android\settings.gradle' line: 21
+
+* What went wrong:
+Error resolving plugin [id: 'com.facebook.react.settings']
+> 25
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 2s
+Watched directory hierarchies: []
