@@ -53,9 +53,6 @@ export const notificationService = {
                     lastTokenUpdate: new Date().toISOString()
                 });
                 console.log('[NotificationService] Firestore update complete');
-
-                // SHOW ALERT ON PHONE FOR DEBUGGING
-                Alert.alert('Push Registered!', 'Token starts with: ' + token.substring(0, 10));
             }
 
             return token;
