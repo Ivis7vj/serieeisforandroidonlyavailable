@@ -100,7 +100,16 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     hideSplash();
   }, [currentUser, loading, segments, appReady, isGuest]);
 
-  // Handle Notifications
+  // Handle Notifications Registration
+  useEffect(() => {
+    if (currentUser && appReady && !loading) {
+      import('@/utils/notification-service').then(({ notificationService }) => {
+        notificationService.registerForPushNotificationsAsync(currentUser.uid);
+      });
+    }
+  }, [currentUser, appReady, loading]);
+
+  // Handle Notification Responses
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data;
