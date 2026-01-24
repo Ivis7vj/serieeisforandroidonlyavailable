@@ -40,5 +40,8 @@
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/up_next_widget_info"/>
     </receiver>
+    <!-- Firebase Notification Config -->
+    <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification" />
+    <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_color" />
   </application>
 </manifest>
