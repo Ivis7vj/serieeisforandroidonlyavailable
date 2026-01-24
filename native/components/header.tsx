@@ -182,11 +182,22 @@ export function Header() {
                 )}
 
                 {/* Right Action: Spacer or Search on home page only */}
-                <View style={styles.rightAction}>
+                <View style={[styles.rightAction, isHome && { width: 80, flexDirection: 'row-reverse' }]}>
                     {isHome && (
-                        <Pressable onPress={handleSearchPress} style={styles.iconBtn}>
-                            <Search color="white" size={22} />
-                        </Pressable>
+                        <>
+                            <Pressable
+                                onPress={handleSearchPress}
+                                style={styles.iconBtn}
+                            >
+                                <Search color="white" size={22} />
+                            </Pressable>
+                            <Pressable
+                                onPress={() => { triggerSelection(); router.push('/trending/weekly-top'); }}
+                                style={styles.iconBtn}
+                            >
+                                <TrendingUp color="#FFCC00" size={22} />
+                            </Pressable>
+                        </>
                     )}
                     {isProfile && isOwnProfile && (
                         <Pressable onPress={() => setShowMenu(true)} style={styles.iconBtn}>
