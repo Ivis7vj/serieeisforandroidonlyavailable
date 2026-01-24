@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { NotificationToast } from '@/components/NotificationToast';
 import { UpdateService, UpdateInfo } from '../src/services/UpdateService';
 import { UpdatePopup } from '../src/components/updates/UpdatePopup';
 
@@ -49,6 +50,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
 
   // Safety timeout for the 'loading' state
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setLoadingTimeout(true), 4000);
     return () => clearTimeout(t);
@@ -171,6 +173,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
           />
           <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
+        <NotificationToast visible={toastVisible} onHide={() => setToastVisible(false)} />
         <StatusBar style="light" />
       </ThemeProvider>
     </View>

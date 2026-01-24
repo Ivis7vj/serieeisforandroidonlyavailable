@@ -13,9 +13,11 @@ interface NotificationToastProps {
 export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, onHide }) => {
     const [fadeAnim] = useState(new Animated.Value(0));
     const [translateY] = useState(new Animated.Value(-100));
+    const [shouldRender, setShouldRender] = useState(false);
 
     useEffect(() => {
         if (visible) {
+            setShouldRender(true);
             // Show animation
             Animated.parallel([
                 Animated.timing(fadeAnim, {
@@ -51,10 +53,13 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, o
                 duration: 400,
                 useNativeDriver: true,
             }),
-        ]).start(() => onHide());
+        ]).start(() => {
+            onHide();
+            setShouldRender(false);
+        });
     };
 
-    if (!visible && fadeAnim._value === 0) return null;
+    if (!shouldRender) return null;
 
     return (
         <Animated.View style={[
