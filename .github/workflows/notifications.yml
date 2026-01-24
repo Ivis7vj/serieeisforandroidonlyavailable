@@ -2,8 +2,8 @@ name: SERIEE Notifications
 
 on:
   schedule:
-    - cron: '0 8 * * *'    # Daily at 8:00 AM UTC
-    - cron: '0 18 * * 0'   # Sunday at 6:00 PM UTC
+    - cron: '30 3 * * *'    # Daily at 9:00 AM IST (3:30 AM UTC)
+    - cron: '30 3 * * 0'    # Sunday at 9:00 AM IST (3:30 AM UTC)
   workflow_dispatch:        # Allows manual trigger
 
 jobs:
