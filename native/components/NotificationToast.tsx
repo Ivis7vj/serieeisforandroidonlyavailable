@@ -7,10 +7,12 @@ const { width } = Dimensions.get('window');
 
 interface NotificationToastProps {
     visible: boolean;
+    title?: string;
+    message?: string;
     onHide: () => void;
 }
 
-export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, onHide }) => {
+export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, title, message, onHide }) => {
     const [fadeAnim] = useState(new Animated.Value(0));
     const [translateY] = useState(new Animated.Value(-100));
     const [shouldRender, setShouldRender] = useState(false);
@@ -33,10 +35,10 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, o
                 }),
             ]).start();
 
-            // Auto-hide after 3 seconds
+            // Auto-hide after 4 seconds (slightly longer for reading)
             const timer = setTimeout(() => {
                 hide();
-            }, 3000);
+            }, 4000);
             return () => clearTimeout(timer);
         }
     }, [visible]);
@@ -68,14 +70,19 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, o
         ]}>
             <BlurView intensity={80} tint="dark" style={styles.blur}>
                 <View style={styles.content}>
-                    <View style={styles.iconCircle}>
-                        <Image
-                            source={require('../assets/images/icon.png')}
-                            style={{ width: 22, height: 22, borderRadius: 11 }}
-                            contentFit="cover"
-                        />
+                    <View style={styles.iconContainer}>
+                        <View style={styles.iconCircle}>
+                            <Image
+                                source={require('../assets/images/icon.png')}
+                                style={{ width: 22, height: 22, borderRadius: 11 }}
+                                contentFit="cover"
+                            />
+                        </View>
                     </View>
-                    <Text style={styles.text}>You get notifications</Text>
+                    <View style={styles.textContainer}>
+                        {title ? <Text style={styles.title} numberOfLines={1}>{title}</Text> : null}
+                        <Text style={styles.message} numberOfLines={2}>{message || 'You have a new notification'}</Text>
+                    </View>
                 </View>
             </BlurView>
         </Animated.View>
@@ -86,37 +93,50 @@ const styles = StyleSheet.create({
     container: {
         position: 'absolute',
         top: 40,
-        left: (width - 240) / 2, // Centers the 240px wide popup
+        alignSelf: 'center',
         zIndex: 9999,
-        width: 240,
+        minWidth: 200,
+        maxWidth: width - 40,
         borderRadius: 20,
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.15)',
     },
     blur: {
-        paddingVertical: 10,
+        paddingVertical: 12,
         paddingHorizontal: 16,
     },
     content: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'flex-start',
+    },
+    iconContainer: {
+        marginRight: 12,
         justifyContent: 'center',
     },
     iconCircle: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: '#FFF', // White circle for Apple look
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#FFF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 10,
     },
-    text: {
+    textContainer: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    title: {
         color: '#FFF',
-        fontSize: 15,
-        fontWeight: '600',
-        letterSpacing: -0.3,
-        // Using System font for Apple style
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    message: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 13,
+        fontWeight: '400',
+        lineHeight: 16,
     }
 });

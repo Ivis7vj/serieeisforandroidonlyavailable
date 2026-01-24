@@ -51,6 +51,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   // Safety timeout for the 'loading' state
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastContent, setToastContent] = useState({ title: '', message: '' });
   useEffect(() => {
     const t = setTimeout(() => setLoadingTimeout(true), 4000);
     return () => clearTimeout(t);
@@ -112,6 +113,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
             .then(token => {
               // Only show the registration toast if permission was NOT granted initially (new signup/allow)
               if (token && existingStatus !== 'granted') {
+                setToastContent({ title: 'Notifications On', message: 'You will now receive updates about your series.' });
                 setToastVisible(true);
               }
             })
@@ -126,7 +128,12 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     // When app is open and notification arrives
     const subscription = Notifications.addNotificationReceivedListener(notification => {
       console.log('[Root] Notification received in foreground');
-      setToastVisible(true); // Show our custom black-logo toast
+      const { title, body } = notification.request.content;
+      setToastContent({
+        title: title || 'New Notification',
+        message: body || 'Check the app for updates.'
+      });
+      setToastVisible(true);
     });
     return () => subscription.remove();
   }, []);
@@ -186,7 +193,12 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
           />
           <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
-        <NotificationToast visible={toastVisible} onHide={() => setToastVisible(false)} />
+        <NotificationToast
+          visible={toastVisible}
+          title={toastContent.title}
+          message={toastContent.message}
+          onHide={() => setToastVisible(false)}
+        />
         <StatusBar style="light" />
       </ThemeProvider>
     </View>
