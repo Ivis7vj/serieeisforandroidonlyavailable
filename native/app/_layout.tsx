@@ -83,6 +83,10 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
       }
     }
 
+    // ONLY SHOW CONTENT AND HIDE SPLASH IF WE ARE WHERE WE BELONG
+    const isAtCorrectPlace = (currentUser && isAtTabs) || (!currentUser && isAtLogin) || isSigningUp || isGuest;
+    if (!isAtCorrectPlace && !loading) return;
+
     // Aggressive Splash Hide
     const hideSplash = async () => {
       try {
@@ -94,7 +98,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     };
 
     hideSplash();
-  }, [currentUser, loading, segments, appReady]);
+  }, [currentUser, loading, segments, appReady, isGuest]);
 
   // Handle Notifications
   useEffect(() => {
@@ -114,12 +118,8 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return () => subscription.remove();
   }, []);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FFCC00" />
-      </View>
-    );
+  if (loading || !appReady) {
+    return null; // Keep splash visible by rendering nothing
   }
 
   return (
@@ -144,7 +144,14 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
               contentStyle: { backgroundColor: '#000' },
             }}
           />
-          <Stack.Screen name="trending/weekly-top" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="trending/weekly-top"
+            options={{
+              headerShown: false,
+              animation: 'slide_from_bottom',
+              presentation: 'transparentModal'
+            }}
+          />
           <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
         <StatusBar style="light" />

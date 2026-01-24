@@ -162,6 +162,7 @@ export default function WeeklyTopScreen() {
 
     return (
         <View style={styles.container}>
+            <Stack.Screen options={{ headerShown: false }} />
             <View style={[styles.header, { paddingTop: insets.top, height: insets.top + 56 }]}>
                 <Pressable style={styles.backButton} onPress={() => router.back()}>
                     <ArrowLeft color="#FFF" size={28} />
