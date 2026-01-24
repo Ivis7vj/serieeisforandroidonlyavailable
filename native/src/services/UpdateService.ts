@@ -65,9 +65,22 @@ export class UpdateService {
     }
 
     static async openDownloadPage() {
-        // We re-fetch or use default if we can't get it easily, but usually the link is familiar
-        // Ideally we pass the link from the popup, but for now we fallback safely
-        console.log('[UpdateService] Opening download page:', DEFAULT_APK_URL);
+        try {
+            const docRef = doc(db, 'app_config', 'android');
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const url = docSnap.data().download_url;
+                if (url) {
+                    console.log('[UpdateService] Opening Firestore download URL:', url);
+                    await Linking.openURL(url);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[UpdateService] Failed to fetch dynamic URL, using default');
+        }
+
+        console.log('[UpdateService] Opening default download page:', DEFAULT_APK_URL);
         await Linking.openURL(DEFAULT_APK_URL);
     }
 }
