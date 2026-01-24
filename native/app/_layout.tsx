@@ -144,7 +144,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
               contentStyle: { backgroundColor: '#000' },
             }}
           />
-          <Stack.Screen name="trending/weekly-top" />
+          <Stack.Screen name="trending/weekly-top" options={{ headerShown: false }} />
           <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
         <StatusBar style="light" />

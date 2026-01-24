@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, Modal, Dimensions, Platform, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, TrendingUp, Info, Clock } from 'lucide-react-native';
+import { ArrowLeft, TrendingUp, Info, Clock } from 'lucide-react-native';
 import { tmdbApi } from '@/utils/tmdb';
 import { supabase } from '@/utils/supabase';
 import { useAuth } from '@/context/auth-context';
@@ -160,10 +160,9 @@ export default function WeeklyTopScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Blank Header with Back Button */}
             <View style={styles.header}>
                 <Pressable style={styles.backButton} onPress={() => router.back()}>
-                    <ChevronLeft color="#FFF" size={28} />
+                    <ArrowLeft color="#FFF" size={28} />
                 </Pressable>
             </View>
 
@@ -228,10 +227,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
     },
     header: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingTop: Platform.OS === 'ios' ? 50 : 30, // Adjusted for slightly tighter fit
         paddingHorizontal: 20,
-        height: 100,
+        height: 80,
         justifyContent: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     backButton: {
         width: 40,
