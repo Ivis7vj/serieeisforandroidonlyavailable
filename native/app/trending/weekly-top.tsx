@@ -174,14 +174,11 @@ export default function WeeklyTopScreen() {
                     <ActivityIndicator color="#FFCC00" style={{ marginTop: 50 }} />
                 ) : !isRevealMode ? (
                     <View style={styles.timerContainer}>
-                        <View style={styles.clockIcon}>
-                            <Clock color="#FFCC00" size={48} />
-                        </View>
                         <Text style={styles.timerText}>
                             {timeLeft.d} : {timeLeft.h} : {timeLeft.m} : {timeLeft.s}
                         </Text>
                         <Text style={styles.timerSub}>Days : Hrs : Min : Sec</Text>
-                        <Text style={styles.timerNote}>Check back Sunday at 9:00 AM</Text>
+                        <Text style={styles.timerNote}>Reveals Sunday at 9:00 AM</Text>
                     </View>
                 ) : (
                     <View style={styles.grid}>
@@ -246,45 +243,39 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     pageTitle: {
-        fontSize: 34,
+        fontSize: 28,
         fontWeight: '900',
         color: '#FFF',
         fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
         letterSpacing: -1,
-        marginBottom: 24,
+        marginBottom: 16,
     },
     timerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: height * 0.15,
-    },
-    clockIcon: {
-        marginBottom: 30,
-        backgroundColor: 'rgba(255,204,0,0.1)',
-        padding: 20,
-        borderRadius: 40,
+        marginTop: height * 0.12,
     },
     timerText: {
-        fontSize: 42,
+        fontSize: 34,
         fontWeight: '900',
         color: '#FFF',
         fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
         letterSpacing: 2,
     },
     timerSub: {
-        fontSize: 12,
-        color: '#888',
+        fontSize: 10,
+        color: '#666',
         fontWeight: 'bold',
         textTransform: 'uppercase',
-        letterSpacing: 4,
-        marginTop: 8,
-        marginLeft: 10,
+        letterSpacing: 3,
+        marginTop: 6,
+        marginLeft: 8,
     },
     timerNote: {
-        color: '#555',
-        fontSize: 14,
-        marginTop: 40,
+        color: '#444',
+        fontSize: 12,
+        marginTop: 30,
         fontWeight: '600',
     },
     grid: {

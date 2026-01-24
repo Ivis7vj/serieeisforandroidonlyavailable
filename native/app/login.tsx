@@ -653,9 +653,6 @@ export default function LandingScreen() {
                     <Text style={styles.logoText}>
                         <Text style={{ color: '#FFCC00' }}>S</Text>ERIEE
                     </Text>
-                    <Text style={{ color: '#00FF00', fontSize: 11, fontWeight: 'bold', marginTop: -5, opacity: 0.9 }}>
-                        V3 - NULL SAFE 🛡️
-                    </Text>
                     <LinearGradient
                         colors={['rgba(255,255,255,0.2)', 'transparent']}
                         style={styles.separator}
@@ -986,11 +983,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     logoText: {
-        fontFamily: 'Anton-Regular',
-        fontSize: 48,
+        fontSize: 72,
+        fontFamily: 'Anton',
         color: '#FFFFFF',
         letterSpacing: 2,
-        includeFontPadding: false,
+        textAlign: 'center',
     },
     separator: {
         height: 1,

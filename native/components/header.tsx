@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
         zIndex: 1000,
         borderBottomWidth: 1,
-        borderBottomColor: '#1a1a1a',
+        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     content: {
         height: 56,

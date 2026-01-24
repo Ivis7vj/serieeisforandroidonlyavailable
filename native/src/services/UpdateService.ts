@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../utils/firebase';
+import { db } from '@/utils/firebase';
 
 const DOWNLOAD_URL = 'https://seriee.vercel.app';
 

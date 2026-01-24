@@ -1,0 +1,7 @@
+com.seriee.app.test.app-tracing-1.2.0-0 C:\Users\vishw\caretails\caches\8.14.3\transforms\60c4b081ef58c38e1eb8ed4337c24fea\transformed\tracing-1.2.0\res
+com.seriee.app.test.app-core-1.7.0-1 C:\Users\vishw\caretails\caches\8.14.3\transforms\cd3fe32ded0349e5248874dd9c049493\transformed\core-1.7.0\res
+com.seriee.app.test.app-androidTest-2 E:\mernstack_internship\letterboard\client\android\app\build\generated\res\resValues\androidTest\debug
+com.seriee.app.test.app-updated_navigation_xml-3 E:\mernstack_internship\letterboard\client\android\app\build\generated\updated_navigation_xml\debugAndroidTest
+com.seriee.app.test.app-mergeDebugAndroidTestResources-4 E:\mernstack_internship\letterboard\client\android\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
+com.seriee.app.test.app-mergeDebugAndroidTestResources-5 E:\mernstack_internship\letterboard\client\android\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
+com.seriee.app.test.app-debugAndroidTest-6 E:\mernstack_internship\letterboard\client\android\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources
