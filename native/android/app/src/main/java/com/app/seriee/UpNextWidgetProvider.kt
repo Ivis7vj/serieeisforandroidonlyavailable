@@ -1,4 +1,4 @@
-package com.anonymous.xnative
+package com.app.seriee
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider

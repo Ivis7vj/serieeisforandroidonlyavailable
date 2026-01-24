@@ -110,7 +110,6 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
       import('@/utils/notification-service').then(({ notificationService }) => {
         notificationService.registerForPushNotificationsAsync(currentUser.uid)
           .then(token => {
-            console.log('[Root] Token registration success:', !!token);
             if (token) setToastVisible(true);
           })
           .catch(err => console.error('[Root] Token registration error:', err));

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 
 const { width } = Dimensions.get('window');
@@ -69,7 +69,11 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, o
             <BlurView intensity={80} tint="dark" style={styles.blur}>
                 <View style={styles.content}>
                     <View style={styles.iconCircle}>
-                        <Check color="#000" size={14} strokeWidth={3} />
+                        <Image
+                            source={require('../assets/images/icon.png')}
+                            style={{ width: 22, height: 22, borderRadius: 11 }}
+                            contentFit="cover"
+                        />
                     </View>
                     <Text style={styles.text}>You get notifications</Text>
                 </View>

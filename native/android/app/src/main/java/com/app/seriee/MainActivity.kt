@@ -1,4 +1,4 @@
-package com.anonymous.xnative
+package com.app.seriee
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
