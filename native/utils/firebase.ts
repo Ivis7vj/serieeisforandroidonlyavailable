@@ -2,6 +2,7 @@ import { initializeApp, getApp, getApps } from "firebase/app";
 import * as firebaseAuth from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getRemoteConfig } from "firebase/remote-config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // CORRECTED CONFIG FROM WEB APP .ENV
@@ -36,6 +37,11 @@ try {
 
 const db = getFirestore(app);
 const storage = getStorage(app);
-console.log('Firebase: Firestore & Storage success');
+const remoteConfig = getRemoteConfig(app);
 
-export { auth, db, app, storage };
+// Simple default values for remote config to avoid crashes before fetch
+remoteConfig.settings.minimumFetchIntervalMillis = 3600000; // 1 hour
+
+console.log('Firebase: Firestore, Storage & RemoteConfig success');
+
+export { auth, db, app, storage, remoteConfig };

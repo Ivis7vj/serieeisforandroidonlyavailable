@@ -1,9 +1,9 @@
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/utils/firebase';
+import { remoteConfig } from '@/utils/firebase';
+import { fetchAndActivate, getStringValue, getBooleanValue } from 'firebase/remote-config';
 
-const DOWNLOAD_URL = 'https://seriee.vercel.app/app-release.apk';
+const DEFAULT_APK_URL = 'https://seriee.vercel.app/app-release.apk';
 
 export interface UpdateInfo {
     version: string;
@@ -14,28 +14,30 @@ export interface UpdateInfo {
 export class UpdateService {
     static async checkForUpdate(): Promise<UpdateInfo | null> {
         try {
-            console.log('[UpdateService] Checking Firestore for updates...');
+            console.log('[UpdateService] Checking Remote Config for updates...');
 
-            // Fetch version info from Firestore: collection 'config', document 'version'
-            const versionDocRef = doc(db, 'config', 'version');
-            const versionSnap = await getDoc(versionDocRef);
+            // 1. Fetch and activate
+            await fetchAndActivate(remoteConfig);
 
-            if (!versionSnap.exists()) {
-                console.log('[UpdateService] No version document found in Firestore (config/version)');
-                return null;
-            }
+            // 2. Get values from Remote Config (matching your screenshot)
+            const remoteVersion = getStringValue(remoteConfig, 'version');
+            const changelog = getStringValue(remoteConfig, 'changelog');
+            const mandatory = getBooleanValue(remoteConfig, 'mandatory') || false; // Set to false if missing
 
-            const remoteConfig = versionSnap.data() as UpdateInfo;
             const currentVersion = Constants.expoConfig?.version || '0.0.0';
 
-            console.log(`[UpdateService] Remote: ${remoteConfig.version}, Local: ${currentVersion}`);
+            console.log(`[UpdateService] Remote: ${remoteVersion}, Local: ${currentVersion}`);
 
-            // Simple semantic version comparison (v1 < v2)
-            if (this.isNewer(remoteConfig.version, currentVersion)) {
-                return remoteConfig;
+            // 3. Comparison
+            if (remoteVersion && this.isNewer(remoteVersion, currentVersion)) {
+                return {
+                    version: remoteVersion,
+                    mandatory: mandatory,
+                    notes: changelog || "New features and minor bug fixes."
+                };
             }
         } catch (error) {
-            console.error('[UpdateService] Check failed:', error);
+            console.error('[UpdateService] Remote Config check failed:', error);
         }
         return null;
     }
@@ -52,6 +54,8 @@ export class UpdateService {
     }
 
     static async openDownloadPage() {
-        await Linking.openURL(DOWNLOAD_URL);
+        const downloadUrl = getStringValue(remoteConfig, 'download_url') || DEFAULT_APK_URL;
+        console.log('[UpdateService] Opening download page:', downloadUrl);
+        await Linking.openURL(downloadUrl);
     }
 }
