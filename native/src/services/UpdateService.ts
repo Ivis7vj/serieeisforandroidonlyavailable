@@ -16,8 +16,9 @@ export class UpdateService {
         try {
             console.log('[UpdateService] Checking Remote Config for updates...');
 
-            // 1. Fetch and activate
+            // 1. Fetch and activate (Interval 0 ensures real-time check for development/QA)
             await fetchAndActivate(remoteConfig);
+            remoteConfig.settings.minimumFetchIntervalMillis = 0;
 
             // 2. Get values from Remote Config (matching your screenshot)
             const remoteVersion = getString(remoteConfig, 'version');

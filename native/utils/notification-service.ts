@@ -53,6 +53,7 @@ export const notificationService = {
                     lastTokenUpdate: new Date().toISOString()
                 });
                 console.log('[NotificationService] Firestore update complete');
+                console.log('[NotificationService] Firestore update complete');
             }
 
             return token;
