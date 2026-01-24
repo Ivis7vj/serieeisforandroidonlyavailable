@@ -107,7 +107,10 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
       console.log('[Root] Triggering token registration for:', currentUser.uid);
       import('@/utils/notification-service').then(({ notificationService }) => {
         notificationService.registerForPushNotificationsAsync(currentUser.uid)
-          .then(token => console.log('[Root] Token registration success:', !!token))
+          .then(token => {
+            console.log('[Root] Token registration success:', !!token);
+            if (token) setToastVisible(true);
+          })
           .catch(err => console.error('[Root] Token registration error:', err));
       });
     }
@@ -193,6 +196,7 @@ export default function RootLayout() {
   // Emergency safety for fonts - if fonts don't load in 4s, we show the UI anyway
   const [fontTimeout, setFontTimeout] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
     UpdateService.checkForUpdate().then(info => {
