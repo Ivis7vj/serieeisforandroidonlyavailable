@@ -38,22 +38,25 @@ export const notificationService = {
         }
 
         try {
+            console.log('[NotificationService] Getting Expo Push Token...');
             const token = (await Notifications.getExpoPushTokenAsync()).data;
-            console.log('[NotificationService] Expo Push Token:', token);
+            console.log('[NotificationService] Expo Push Token obtained:', token);
 
             // Save to Firestore
             if (userId) {
+                console.log('[NotificationService] Saving token to Firestore users/' + userId);
                 const userRef = doc(db, 'users', userId);
                 await updateDoc(userRef, {
                     pushToken: token,
                     notificationsEnabled: true,
                     lastTokenUpdate: new Date().toISOString()
                 });
+                console.log('[NotificationService] Firestore update complete');
             }
 
             return token;
-        } catch (error) {
-            console.error('[NotificationService] Error getting token:', error);
+        } catch (error: any) {
+            console.error('[NotificationService] Error getting token:', error.message);
             return null;
         }
     },
@@ -136,7 +139,7 @@ export const notificationService = {
             if (settings.newEpisodes !== undefined) updates.notifyNewEpisodes = settings.newEpisodes;
             if (settings.newSeasons !== undefined) updates.notifyNewSeasons = settings.newSeasons;
             if (settings.weeklyPicks !== undefined) updates.notifyWeeklyPicks = settings.weeklyPicks;
-            
+
             await updateDoc(userRef, updates);
             return true;
         } catch (error) {
