@@ -149,7 +149,8 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
             options={{
               headerShown: false,
               animation: 'slide_from_bottom',
-              presentation: 'transparentModal'
+              presentation: 'modal',
+              gestureEnabled: true
             }}
           />
           <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />

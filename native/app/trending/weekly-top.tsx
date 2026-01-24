@@ -230,10 +230,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
     },
     header: {
+        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 20,
-        justifyContent: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: '#000',
+        zIndex: 10,
     },
     backButton: {
         width: 40,

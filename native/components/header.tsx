@@ -157,8 +157,8 @@ export function Header() {
                                     <Text style={styles.pageTitle}>Search</Text>
                                 ) : (
                                     <Text style={styles.pageTitle}>
-                                        {/* Prevents ID from showing as title on series pages. Numeric check for Android fallback. */}
-                                        {isSeriesDetails || isProfile || !isNaN(Number(pathname.split('/').pop())) ? '' : (() => {
+                                        {/* Prevents ID from showing as title on series pages. Also ignore trending pages for shared header. */}
+                                        {isSeriesDetails || isProfile || pathname.includes('weekly-top') || !isNaN(Number(pathname.split('/').pop())) ? '' : (() => {
                                             const raw = pathname.split('/').pop() || '';
                                             return raw.charAt(0).toUpperCase() + raw.slice(1);
                                         })()}
