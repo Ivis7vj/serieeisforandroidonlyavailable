@@ -228,6 +228,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     UpdateService.checkForUpdate().then(info => {
+      console.log('[Root] Update check finished. Result:', info ? 'Update Found' : 'No Update');
       if (info) setUpdateInfo(info);
     });
   }, []);

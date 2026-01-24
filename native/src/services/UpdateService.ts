@@ -47,6 +47,8 @@ export class UpdateService {
                     mandatory: mandatory,
                     notes: changelog || "New features and minor bug fixes."
                 };
+            } else {
+                console.log('[UpdateService] No update needed (Remote <= Local)');
             }
         } catch (error) {
             console.error('[UpdateService] Remote Config check failed:', error);
