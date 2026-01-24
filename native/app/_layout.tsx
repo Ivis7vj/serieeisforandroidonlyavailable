@@ -102,9 +102,13 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
 
   // Handle Notifications Registration
   useEffect(() => {
+    console.log('[Root] Checking Notification Auth State:', { hasUser: !!currentUser, appReady, loading });
     if (currentUser && appReady && !loading) {
+      console.log('[Root] Triggering token registration for:', currentUser.uid);
       import('@/utils/notification-service').then(({ notificationService }) => {
-        notificationService.registerForPushNotificationsAsync(currentUser.uid);
+        notificationService.registerForPushNotificationsAsync(currentUser.uid)
+          .then(token => console.log('[Root] Token registration success:', !!token))
+          .catch(err => console.error('[Root] Token registration error:', err));
       });
     }
   }, [currentUser, appReady, loading]);
