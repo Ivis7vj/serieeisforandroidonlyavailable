@@ -68,23 +68,21 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, t
             styles.container,
             { opacity: fadeAnim, transform: [{ translateY }] }
         ]}>
-            <BlurView intensity={80} tint="dark" style={styles.blur}>
+            <View style={styles.solidBg}>
                 <View style={styles.content}>
                     <View style={styles.iconContainer}>
-                        <View style={styles.iconCircle}>
-                            <Image
-                                source={require('../assets/images/icon.png')}
-                                style={{ width: 22, height: 22, borderRadius: 11 }}
-                                contentFit="cover"
-                            />
-                        </View>
+                        <Image
+                            source={require('../assets/images/icon.png')}
+                            style={{ width: 28, height: 28, borderRadius: 6 }}
+                            contentFit="cover"
+                        />
                     </View>
                     <View style={styles.textContainer}>
                         {title ? <Text style={styles.title} numberOfLines={1}>{title}</Text> : null}
                         <Text style={styles.message} numberOfLines={2}>{message || 'You have a new notification'}</Text>
                     </View>
                 </View>
-            </BlurView>
+            </View>
         </Animated.View>
     );
 };
@@ -95,16 +93,24 @@ const styles = StyleSheet.create({
         top: 40,
         alignSelf: 'center',
         zIndex: 9999,
-        minWidth: 200,
-        maxWidth: width - 40,
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
+        // Dynamic width constraints
+        minWidth: 160,
+        maxWidth: width - 60,
+        borderRadius: 24, // High radius for capsule look
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 4.65,
+        elevation: 8,
     },
-    blur: {
-        paddingVertical: 12,
+    solidBg: {
+        backgroundColor: '#000000', // Pure black
+        paddingVertical: 10,
         paddingHorizontal: 16,
+        borderRadius: 24,
     },
     content: {
         flexDirection: 'row',
@@ -114,29 +120,23 @@ const styles = StyleSheet.create({
     iconContainer: {
         marginRight: 12,
         justifyContent: 'center',
-    },
-    iconCircle: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#FFF',
-        justifyContent: 'center',
         alignItems: 'center',
     },
+    // iconCircle removed - straight image
     textContainer: {
-        flex: 1,
+        flex: 1, // Allows text to take available space
         justifyContent: 'center',
     },
     title: {
-        color: '#FFF',
-        fontSize: 14,
+        color: '#FFFFFF',
+        fontSize: 13,
         fontWeight: '700',
-        marginBottom: 2,
+        marginBottom: 1,
     },
     message: {
-        color: 'rgba(255,255,255,0.9)',
-        fontSize: 13,
+        color: '#E0E0E0',
+        fontSize: 12, // Compact size
         fontWeight: '400',
-        lineHeight: 16,
+        lineHeight: 14,
     }
 });

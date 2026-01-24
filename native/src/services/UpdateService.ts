@@ -45,30 +45,29 @@ export class UpdateService {
                     mandatory: mandatory || false,
                     notes: changelog || "New features and minor bug fixes."
                 };
-            };
+            }
+        } catch (error) {
+            console.error('[UpdateService] Firestore check failed:', error);
         }
-        } catch(error) {
-        console.error('[UpdateService] Firestore check failed:', error);
-    }
         return null;
     }
 
     private static isNewer(remote: string, local: string): boolean {
-    if (!remote) return false;
-    const r = remote.split('.').map(Number);
-    const l = local.split('.').map(Number);
+        if (!remote) return false;
+        const r = remote.split('.').map(Number);
+        const l = local.split('.').map(Number);
 
-    for (let i = 0; i < 3; i++) {
-        if ((r[i] || 0) > (l[i] || 0)) return true;
-        if ((r[i] || 0) < (l[i] || 0)) return false;
+        for (let i = 0; i < 3; i++) {
+            if ((r[i] || 0) > (l[i] || 0)) return true;
+            if ((r[i] || 0) < (l[i] || 0)) return false;
+        }
+        return false;
     }
-    return false;
-}
 
     static async openDownloadPage() {
-    // We re-fetch or use default if we can't get it easily, but usually the link is familiar
-    // Ideally we pass the link from the popup, but for now we fallback safely
-    console.log('[UpdateService] Opening download page:', DEFAULT_APK_URL);
-    await Linking.openURL(DEFAULT_APK_URL);
-}
+        // We re-fetch or use default if we can't get it easily, but usually the link is familiar
+        // Ideally we pass the link from the popup, but for now we fallback safely
+        console.log('[UpdateService] Opening download page:', DEFAULT_APK_URL);
+        await Linking.openURL(DEFAULT_APK_URL);
+    }
 }
