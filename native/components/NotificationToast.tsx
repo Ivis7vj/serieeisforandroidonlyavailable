@@ -71,11 +71,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ visible, t
             <View style={styles.solidBg}>
                 <View style={styles.content}>
                     <View style={styles.iconContainer}>
-                        <Image
-                            source={require('../assets/images/icon.png')}
-                            style={{ width: 28, height: 28, borderRadius: 6 }}
-                            contentFit="cover"
-                        />
+                        <Text style={styles.logoText}>S</Text>
                     </View>
                     <View style={styles.textContainer}>
                         {title ? <Text style={styles.title} numberOfLines={1}>{title}</Text> : null}
@@ -118,11 +114,20 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
     },
     iconContainer: {
-        marginRight: 12,
+        marginRight: 10,
         justifyContent: 'center',
         alignItems: 'center',
+        width: 28, // Fixed width to align nicely
     },
-    // iconCircle removed - straight image
+    logoText: {
+        fontFamily: 'Anton-Regular',
+        fontSize: 28,
+        color: '#FFD700', // Primary Yellow
+        includeFontPadding: false,
+        textAlignVertical: 'center',
+        lineHeight: 30, // Adjust for vertical centering
+        marginTop: 2, // Minute adjustment for visual center
+    },
     textContainer: {
         flex: 1, // Allows text to take available space
         justifyContent: 'center',
