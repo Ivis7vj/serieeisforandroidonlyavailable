@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-const DEFAULT_APK_URL = 'https://seriee.vercel.app/app-release.apk';
+const DEFAULT_APK_URL = 'https://serieeisforandroidonlyavailable.vercel.app/';
 
 export interface UpdateInfo {
     version: string;
