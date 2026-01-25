@@ -103,8 +103,10 @@ export function UpNextWidget({ seriesName, episodeInfo, backdropUri }: UpNextWid
                 <FlexWidget
                     style={{
                         marginTop: 8,
-                        flexDirection: 'row'
+                        flexDirection: 'row',
+                        alignItems: 'center'
                     }}
+                    clickAction="OPEN_APP"
                 >
                     <TextWidget
                         text="UP NEXT"
@@ -113,6 +115,15 @@ export function UpNextWidget({ seriesName, episodeInfo, backdropUri }: UpNextWid
                             fontSize: 10,
                             fontWeight: 'bold',
                             letterSpacing: 0.5
+                        }}
+                    />
+                    <TextWidget
+                        text="• LIVE"
+                        style={{
+                            color: '#4CAF50',
+                            fontSize: 10,
+                            fontWeight: '900',
+                            marginLeft: 6
                         }}
                     />
                 </FlexWidget>
