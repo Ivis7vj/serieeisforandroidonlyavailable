@@ -82,10 +82,7 @@ export default function FullSeasonsScreen() {
                     selectedSeason={-1} // None selected in full view by default, or we could pass from params
                     onSeasonSelect={(s) => {
                         triggerSelection();
-                        router.push({
-                            pathname: `/series/${id}`,
-                            params: { selectedSeason: s }
-                        } as any);
+                        router.push(`/series/${id}?selectedSeason=${s}` as any);
                     }}
                     isFullList={true}
                 />

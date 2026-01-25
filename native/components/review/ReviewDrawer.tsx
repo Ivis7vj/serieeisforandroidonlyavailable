@@ -502,7 +502,7 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
                         <View style={[Styles.starsRow, (!isEditing && (currentUser?.uid === reviewData?.userId)) ? { opacity: 0.6 } : { opacity: 1 }]}>
                             {[1, 2, 3, 4, 5].map((star) => {
                                 const isFull = rating >= star;
-                                const isHalf = rating === star - 0.5;
+                                const isHalf = rating >= star - 0.5 && rating < star;
                                 return (
                                     <TouchableOpacity
                                         key={star}
@@ -513,7 +513,7 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
                                     >
                                         <View>
                                             <FontAwesome
-                                                name={isFull ? "star" : (isHalf ? "star-half-empty" : "star-o")}
+                                                name={isFull ? "star" : (isHalf ? "star-half-full" : "star-o")}
                                                 size={42}
                                                 color={isFull || isHalf ? "#FFD600" : "#333"}
                                             />

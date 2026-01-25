@@ -1,5 +1,5 @@
 {
-    "version": "2.0.1",
-    "mandatory": false,
-    "notes": "Enabled Push Notifications and Weekly Roundup!"
+    "version": "3.0.0",
+    "mandatory": true,
+    "notes": "Introduced Month-End Diary Export, Offline Mode, and Critical Fixes."
 }

@@ -51,7 +51,7 @@ const PosterGridItem = ({ item, onPress, showBadges = false, userPosters }: Post
     const seriesId = String(item.seriesId || item.tmdbId || item.tmdb_id || item.id);
 
     const resolvedUrl = useMemo(() => {
-        return getResolvedPosterUrl(seriesId, rawPoster, userPosters, 'w342', item.seasonNumber);
+        return getResolvedPosterUrl(seriesId, rawPoster, userPosters, 'w342', item.seasonNumber, true, true);
     }, [seriesId, rawPoster, userPosters, item.seasonNumber]);
 
     return (
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     diarySeasonText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
     epsBadge: { position: 'absolute', bottom: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
     epsText: { color: '#888', fontSize: 10, fontWeight: 'bold' },
-    diaryDateBadge: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
+    diaryDateBadge: { position: 'absolute', bottom: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
     diaryDateText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
     globalLoading: {
         ...StyleSheet.absoluteFillObject,

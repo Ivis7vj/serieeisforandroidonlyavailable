@@ -6,26 +6,29 @@ import { getUserLikes } from './likes-service';
 import * as ratingService from './rating-service';
 import { supabase } from './supabase';
 import { tmdbApi } from './tmdb';
+import { getUserReviews } from './review-service';
 
-const hydrateLikes = async (likesList: any[]) => {
-    if (!likesList || likesList.length === 0) return [];
+const hydrateMediaItems = async (items: any[]) => {
+    if (!items || items.length === 0) return [];
 
-    // Deduplicate input list by id (composite key)
-    const uniqueLikesMap = new Map<string, any>();
-    likesList.forEach(l => uniqueLikesMap.set(l.id, l));
-    const dedupedList = Array.from(uniqueLikesMap.values());
+    // CRITICAL: We need the parent SERIES details to get the 'seasons' array
+    const uniqueIds = [...new Set(items.map(l => {
+        const sid = l.seriesId || l.series_id;
+        const tid = l.tmdbId || l.tmdb_id;
+        // If it has a seriesId (like seasons/episodes do), use that for hydration
+        return sid || tid;
+    }).filter(Boolean))];
 
-    const uniqueIds = [...new Set(dedupedList.map(l => l.tmdbId))];
     const seriesMap: { [key: number]: any } = {};
 
-    const BATCH_SIZE = 5;
+    // Parallel fetch for speed
+    const BATCH_SIZE = 10;
     for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
         const batch = uniqueIds.slice(i, i + BATCH_SIZE);
         const results = await Promise.all(batch.map(async (id) => {
             try {
                 return await tmdbApi.getSeriesDetails(String(id));
             } catch (e) {
-                console.warn(`Failed to hydrate series ${id}`, e);
                 return null;
             }
         }));
@@ -33,30 +36,35 @@ const hydrateLikes = async (likesList: any[]) => {
         results.forEach(series => {
             if (series) seriesMap[series.id] = series;
         });
-
-        if (i + BATCH_SIZE < uniqueIds.length) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
     }
 
-    return dedupedList.map(item => {
-        const series = seriesMap[item.tmdbId];
-        let poster = null;
-        let name = 'Unknown Series';
+    return items.map(item => {
+        const sid = item.seriesId || item.series_id;
+        const tid = item.tmdbId || item.tmdb_id;
+        const series = seriesMap[sid || tid];
+
+        let poster = item.poster_path || item.posterPath;
+        let name = item.name || item.seriesName || 'Unknown Series';
 
         if (series) {
+            // Default to series level if no season specific found later
             poster = series.poster_path;
             name = series.name;
-            if (item.type === 'SEASON' && item.seasonNumber && series.seasons) {
-                const s = series.seasons.find((sea: any) => sea.season_number === item.seasonNumber);
-                if (s && s.poster_path) poster = s.poster_path;
+            const sNum = item.seasonNumber || item.season_number;
+            const isSeasonOrEp = (item.type === 'SEASON' || item.type === 'EPISODE' || item.isSeason || item.isEpisode);
+
+            if (isSeasonOrEp && sNum !== undefined && sNum !== null && series.seasons) {
+                const s = series.seasons.find((sea: any) => Number(sea.season_number) === Number(sNum));
+                if (s && s.poster_path) {
+                    poster = s.poster_path;
+                }
             }
         }
 
         return {
             ...item,
             poster_path: poster,
-            seasonPoster: (item.type === 'SEASON') ? poster : null,
+            seasonPoster: poster,
             seriesName: name
         };
     });
@@ -68,7 +76,7 @@ export const getUserProfileData = async (userId: string) => {
     try {
         const [
             userSnap,
-            diary,
+            diaryReviews, // Fetched from Supabase (Source of Truth)
             watchlist,
             rawLikes,
             ratings,
@@ -76,7 +84,7 @@ export const getUserProfileData = async (userId: string) => {
             postersResult
         ] = await Promise.all([
             getDoc(doc(db, 'users', userId)),
-            diaryService.getUserDiary(userId),
+            getUserReviews(userId), // Replaces legacy diaryService.getUserDiary
             watchlistService.getWatchlist(userId),
             getUserLikes(userId),
             ratingService.getUserRatings(userId),
@@ -91,7 +99,7 @@ export const getUserProfileData = async (userId: string) => {
             }),
             supabase
                 .from('user_posters')
-                .select('series_id, poster_path')
+                .select('series_id, poster_path, is_true')
                 .eq('user_id', userId)
         ]);
 
@@ -108,24 +116,68 @@ export const getUserProfileData = async (userId: string) => {
                 achievements: data.achievements || [],
                 starSeries: data.starSeries || [],
                 bannerBackdropPath: data.bannerBackdropPath || null,
-                photoURL: data.photoURL || null
+                photoURL: data.photoURL || null,
+                customPosters: data.customPosters || null // Include customPosters
             };
         }
 
         const activityPreview = activitySnap.docs.map((d: any) => ({ ...d.data(), id: d.id }));
-        const likes = await hydrateLikes(rawLikes);
+
+        // Hydrate both Lists for season-specific posters
+        const [likes, hydratedWatchlist] = await Promise.all([
+            hydrateMediaItems(rawLikes),
+            hydrateMediaItems(watchlist)
+        ]);
+
+        // Map reviews to Diary compatible format (ensure 'date' property)
+        const diary = (diaryReviews || [])
+            .filter((r: any) => r.isSeason) // STRICT: Only Season Reviews in Diary
+            .map((r: any) => ({
+                ...r,
+                date: r.createdAt, // UI uses 'date' for sorting/display
+                name: r.seriesName || r.name,
+                posterPath: r.poster_path || r.posterPath
+            }));
+
+        // Helper to attach ratings
+        const mergeRatings = (items: any[]) => {
+            if (!items) return [];
+            return items.map(item => {
+                let ratingVal = null;
+                const tmdbId = item.tmdbId || item.tmdb_id || item.seriesId || item.id;
+                const sNum = item.seasonNumber || item.season_number;
+                const epNum = item.episodeNumber || item.episode_number;
+
+                // 1. Check Episode Ratings
+                if (epNum !== undefined && sNum !== undefined) {
+                    const found = (ratings.episodes || []).find((r: any) =>
+                        r.tmdb_id == tmdbId && r.season_number == sNum && r.episode_number == epNum
+                    );
+                    if (found) ratingVal = found.rating;
+                }
+                // 2. Check Season Ratings (if no episode rating found or it's a season item)
+                if (!ratingVal && sNum !== undefined) {
+                    const found = (ratings.seasons || []).find((r: any) =>
+                        r.tmdb_id == tmdbId && r.season_number == sNum
+                    );
+                    if (found) ratingVal = found.rating;
+                }
+
+                return { ...item, rating: ratingVal };
+            });
+        };
+
+        const ratedLikes = mergeRatings(likes);
+        const ratedWatchlist = mergeRatings(hydratedWatchlist);
 
         return {
             userInfo,
-            diary: diary || [],
-            watchlist: watchlist || [],
-            likes: likes || [],
+            diary: diary, // Now seeded from Supabase Reviews
+            watchlist: ratedWatchlist || [],
+            likes: ratedLikes || [],
             ratings: ratings || { episodes: [], seasons: [] },
             activityPreview: activityPreview || [],
-            userPosters: ((postersResult as any)?.data || []).reduce((acc: any, row: any) => {
-                if (row.series_id && row.poster_path) acc[row.series_id] = row.poster_path;
-                return acc;
-            }, {})
+            userPosters: userInfo?.customPosters || {}
         };
 
     } catch (error) {

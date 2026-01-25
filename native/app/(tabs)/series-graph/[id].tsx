@@ -161,13 +161,7 @@ export default function GraphDetailScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Close Button */}
-            <Pressable
-                onPress={() => router.back()}
-                style={[styles.closeBtn, { top: insets.top + 20 }]}
-            >
-                <X color="#fff" size={32} />
-            </Pressable>
+
 
             {/* Canvas Wrapper needs to hold the scaled view centrally */}
             <View style={[styles.canvasWrapper, { height: FINAL_HEIGHT * previewScale + 100 }]}>
@@ -229,10 +223,10 @@ export default function GraphDetailScreen() {
                                     {/* Branding */}
                                     <View style={styles.brandingHeaderRight}>
                                         <Text style={styles.reviewedOnLabel}>reviewed on</Text>
-                                        <View style={styles.brandLogoHeavy}>
-                                            <Text style={styles.logoSGold}>S</Text>
-                                            <Text style={styles.logoTextWhite}>ERIEE</Text>
-                                        </View>
+                                        <Text style={styles.mainLogoBrand}>
+                                            <Text style={{ color: '#FFD600' }}>S</Text>
+                                            <Text style={{ color: '#fff' }}>ERIEE</Text>
+                                        </Text>
                                     </View>
 
                                     {/* Grid Labels (S1, S2...) */}
@@ -265,21 +259,20 @@ export default function GraphDetailScreen() {
 
                                                     const ratingVal = rating ? rating.toFixed(1) : (isWatched ? '0.0' : '');
 
-                                                    // Colors
+                                                    // Colors (Color-Blind Friendly Scale)
                                                     let bg = '#1a1a1a'; // locked/default
                                                     let txt = '#fff';
                                                     if (rating) {
-                                                        if (rating >= 5.0) { bg = '#2ecc71'; txt = '#000'; } // Green
-                                                        else if (rating >= 4.0) { bg = '#f1c40f'; txt = '#000'; } // Yellow
-                                                        else if (rating >= 2.0) { bg = '#e67e22'; txt = '#fff'; } // Orange
-                                                        else { bg = '#e74c3c'; txt = '#fff'; } // Red
+                                                        txt = '#000'; // All rating text is black
+                                                        if (rating >= 4.0) bg = '#1b5e20';      // Dark Green (4-5)
+                                                        else if (rating >= 3.5) bg = '#f1c40f'; // Yellow (3.5)
+                                                        else if (rating >= 3.0) bg = '#e67e22'; // Orange (3.0)
+                                                        else if (rating >= 1.0) bg = '#c62828'; // Red (1.0-2.0)
+                                                        else if (rating >= 0.5) bg = '#6a1b9a'; // Purple (0.5)
+                                                        else bg = '#9e9e9e';                    // Grey (0.0/nil)
                                                     } else if (isWatched) {
-                                                        // Web logic: if isWatched but no rating -> '0.0' displayed?
-                                                        // Web code: {rating > 0 ? rating.toFixed(1) : (isWatched ? '0.0' : '')}
-                                                        // Web CSS has no specific class for 'watched but unrated' other than default black? 
-                                                        // Web CSS: .rating-fill-unrated undefined. 
-                                                        // Let's stick to dark grey logic.
-                                                        bg = '#333';
+                                                        bg = '#9e9e9e'; // Grey for watched but unrated
+                                                        txt = '#000';
                                                     }
 
                                                     return (
@@ -399,10 +392,9 @@ const styles = StyleSheet.create({
     titleTextFallback: {
         fontSize: 56, // 3.5rem
         color: '#fff',
-        fontWeight: '900',
         textTransform: 'uppercase',
         textAlign: 'center',
-        fontFamily: 'System' // Anton fallback
+        fontFamily: 'Anton-Regular' // Strictly use Anton
     },
     // RIGHT COL
     gridColVessel: {
@@ -424,17 +416,25 @@ const styles = StyleSheet.create({
     brandLogoHeavy: {
         flexDirection: 'row',
     },
+    mainLogoBrand: {
+        fontSize: 48,
+        fontFamily: 'Anton-Regular',
+        letterSpacing: 0,
+        lineHeight: 52,
+    },
     logoSGold: {
         color: '#FFD600',
-        fontSize: 90, // 5rem
-        fontWeight: '900',
-        letterSpacing: 8,
+        fontSize: 40,
+        letterSpacing: 4,
+        fontFamily: 'Anton-Regular',
+        lineHeight: 46,
     },
     logoTextWhite: {
         color: '#fff',
-        fontSize: 90,
-        fontWeight: '900',
-        letterSpacing: 8,
+        fontSize: 40,
+        letterSpacing: 4,
+        fontFamily: 'Anton-Regular',
+        lineHeight: 46,
     },
     headerLabelsS: {
         flexDirection: 'row',
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     sLabelFix: {
         width: 72,
         textAlign: 'center',
-        fontWeight: '900',
+        fontFamily: 'Anton-Regular',
         fontSize: 28, // 1.5rem
         color: '#666',
     },
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     eLabelFix: {
         width: 60,
         textAlign: 'right',
-        fontWeight: '900',
+        fontFamily: 'Anton-Regular',
         fontSize: 28, // 1.5rem
         color: '#666',
     },

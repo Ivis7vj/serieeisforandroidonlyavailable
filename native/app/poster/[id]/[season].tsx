@@ -122,7 +122,10 @@ export default function PosterSelectionScreen() {
         triggerImpact();
 
         try {
-            // 1. Supabase Event (Or Table update if used extensively)
+            // 1. Determine "isTrue" (Global Override)
+            const isTrue = seasonNum === 0;
+
+            // 2. Supabase Event (Or Table update if used extensively)
             const { error } = await supabase
                 .from('user_posters')
                 .upsert({
@@ -135,19 +138,19 @@ export default function PosterSelectionScreen() {
 
             if (error) {
                 console.error("Supabase poster error:", error);
-                // Don't throw, assume Firestore is primary for UI for now if needed, or throw if critical.
-                // We'll throw to be safe
                 throw error;
             }
 
-            // 2. Firestore (User Document - Main Sync)
+            // 3. Firestore (User Document - Main Sync)
             const userRef = doc(db, 'users', currentUser.uid);
             const posterKey = seasonNum > 0 ? `${tmdbId}_${seasonNum}` : `${tmdbId}_0`;
 
+            const posterValue = { path: posterPath, isTrue };
+
             const updates: any = {
-                [`customPosters.${posterKey}`]: posterPath,
-                [`customPosters.${tmdbId}`]: posterPath, // ALWAYS update global default
-                [`customPosters.${tmdbId}_0`]: posterPath, // ALWAYS update global series key
+                [`customPosters.${posterKey}`]: posterValue,
+                [`customPosters.${tmdbId}`]: posterValue, // Backwards compat or direct access
+                [`customPosters.${tmdbId}_0`]: posterValue,
                 lastPosterEditAt: new Date().toISOString()
             };
 

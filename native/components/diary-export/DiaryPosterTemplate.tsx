@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import ViewShot from 'react-native-view-shot';
+import { FontAwesome } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const POSTERS_PER_ROW = 5;
@@ -79,6 +80,12 @@ const DiaryPosterTemplate = forwardRef<ViewShot, DiaryPosterTemplateProps>(({
                             <View style={styles.seasonBadge}>
                                 <Text style={styles.seasonText}>S{item.seasonNumber || 1}</Text>
                             </View>
+                            {item.rating && (
+                                <View style={styles.ratingBadge}>
+                                    <FontAwesome name="star" size={14} color="#FFD600" />
+                                    <Text style={styles.ratingBadgeText}>{Number(item.rating).toFixed(1)}</Text>
+                                </View>
+                            )}
                         </View>
                     ))}
                 </View>
@@ -182,6 +189,23 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    ratingBadge: {
+        position: 'absolute',
+        bottom: 8,
+        right: 8,
+        backgroundColor: '#000',
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: 6,
+        gap: 5,
+    },
+    ratingBadgeText: {
+        color: '#FFF',
+        fontSize: 14,
+        fontWeight: '900',
     },
     footer: {
         marginTop: 60,

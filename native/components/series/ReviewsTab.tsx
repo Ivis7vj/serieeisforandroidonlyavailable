@@ -47,16 +47,16 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
         !userData?.following?.includes(r.userId)
     );
 
-    // FRIENDS & YOU: Inclusive of all series activity (Episode + Season)
+    // FRIENDS & YOU: Strictly season-specific
     const friendsReviews = reviews.filter(r =>
         userData?.following?.includes(r.userId) &&
-        r.userId !== currentUser?.uid
+        r.userId !== currentUser?.uid &&
+        Number(r.seasonNumber) === Number(selectedSeason)
     );
     const youReviews = reviews.filter(r =>
-        r.userId === currentUser?.uid
+        r.userId === currentUser?.uid &&
+        Number(r.seasonNumber) === Number(selectedSeason)
     );
-
-    const hasMoreGlobal = publicReviews.length > 10 || friendsReviews.length > 10 || youReviews.length > 10;
 
     // 3. Filter for current display
     const displayedReviews = (filter === 'public' ? publicReviews : filter === 'friends' ? friendsReviews : youReviews).map(r => {
@@ -67,7 +67,9 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
         return r;
     });
 
-    const limitedReviews = displayedReviews; // Forcefully show all reviews immediately
+    const limitedReviews = displayedReviews.slice(0, 10);
+
+    const showViewMore = displayedReviews.length > 10;
 
     // Helper: Render Stars (Passed to item)
     const renderStars = (rating: number, size: number = 12) => {
@@ -79,7 +81,7 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
             stars.push(
                 <View key={i} style={{ position: 'relative' }}>
                     <FontAwesome
-                        name={isFull ? "star" : (isHalf ? "star-half-empty" : "star-o")}
+                        name={isFull ? "star" : (isHalf ? "star-half-full" : "star-o")}
                         size={size}
                         color={isFull || isHalf ? "#FFD600" : "#333"}
                     />
@@ -119,7 +121,7 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
                     <Text style={styles.emptyText}>No reviews found.</Text>
                 ) : (
                     <>
-                        {limitedReviews.map((review) => (
+                        {limitedReviews.map((review: Review) => (
                             <ReviewItem
                                 key={review.id}
                                 review={review}
@@ -127,7 +129,7 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
                                 isMe={review.userId === currentUser?.uid}
                             />
                         ))}
-                        {hasMoreGlobal && (
+                        {showViewMore && (
                             <Pressable
                                 style={styles.viewMoreBtn}
                                 onPress={() => {
@@ -135,7 +137,8 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
                                         pathname: '/series-reviews',
                                         params: {
                                             id: seriesId,
-                                            seasonNumber: selectedSeason
+                                            seasonNumber: selectedSeason,
+                                            filter: filter
                                         }
                                     } as any);
                                 }}

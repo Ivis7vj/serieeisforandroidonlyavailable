@@ -20,12 +20,13 @@ import { useAuth } from '@/context/auth-context';
 import * as diaryService from '@/utils/diary-service';
 import { triggerSelection, triggerSuccess, triggerImpact } from '@/utils/haptics';
 import { generateAndShareSticker } from '@/utils/shareUtils';
+import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 
 export default function DiaryDetailScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { currentUser } = useAuth();
+    const { currentUser, globalPosters } = useAuth();
 
     const [entry, setEntry] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -143,7 +144,17 @@ export default function DiaryDetailScreen() {
                 {/* TOP SECTION: Poster & Title */}
                 <View style={Styles.topSection}>
                     <Image
-                        source={{ uri: `https://image.tmdb.org/t/p/w500${entry.posterPath}` }}
+                        source={{
+                            uri: getResolvedPosterUrl(
+                                String(entry.tmdbId),
+                                entry.posterPath,
+                                globalPosters,
+                                'w500',
+                                entry.seasonNumber,
+                                true,
+                                true
+                            ) || undefined
+                        }}
                         style={Styles.poster}
                         contentFit="cover"
                     />

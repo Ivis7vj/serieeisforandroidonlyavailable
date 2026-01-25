@@ -143,7 +143,11 @@ export const CastCrewTab: React.FC<CastCrewTabProps> = ({ seasonCredits, onViewM
             <Pressable
                 key={`person-${seasonNum}-${person.id}-${idx}`}
                 style={styles.personRow}
-                onPress={() => person.id && router.push(`/person/${person.id}`)}
+                onPress={() => {
+                    if (person.id) {
+                        router.push(`/person/${person.id}` as any);
+                    }
+                }}
             >
                 <Image
                     source={{ uri: person.profile_path ? `https://image.tmdb.org/t/p/w200${person.profile_path}` : 'https://via.placeholder.com/150' }}

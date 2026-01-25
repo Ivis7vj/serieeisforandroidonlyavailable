@@ -16,6 +16,7 @@ const normalizeDiaryEntry = (entry: any) => ({
     seriesName: entry.series_name,
     name: entry.series_name,
     seasonNumber: entry.season_number,
+    episodeNumber: entry.episode_number,
     posterPath: entry.poster_path,
     rating: entry.rating,
     review: entry.review_text || "",

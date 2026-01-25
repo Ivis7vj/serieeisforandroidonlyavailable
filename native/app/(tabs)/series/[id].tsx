@@ -15,6 +15,7 @@ import {
     Animated,
     Easing
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, useFocusEffect, useNavigation } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -43,7 +44,7 @@ import {
 import MobileIndicator from '@/components/MobileIndicator';
 import TabsHeader from '@/components/series/TabsHeader';
 import ReviewsTab from '@/components/series/ReviewsTab';
-import { SeasonsTab, CastCrewTab } from '@/components/series/SeasonsTab';
+import { CastCrewTab } from '@/components/series/SeasonsTab';
 import SeasonTrending from '@/components/series/SeasonTrending';
 import WatchedBy from '@/components/series/WatchedBy';
 import AwardsRow from '@/components/series/AwardsRow';
@@ -155,8 +156,10 @@ export default function SeriesDetailsScreen() {
 
     useEffect(() => {
         const listener = scrollY.addListener(({ value }) => {
-            // Further lowered threshold to -250 for even earlier visibility on Android
-            const threshold = titleY.current > 0 ? titleY.current - 250 : 250;
+            // Show title immediately when the on-page title scrolls past the header area
+            // titleY is the layout Y position. We trigger when scroll > titleY.
+            const threshold = titleY.current > 0 ? titleY.current : 300;
+
             if (value > threshold && !showHeaderTitle) {
                 setShowHeaderTitle(true);
                 router.setParams({ showHeaderTitle: 'true' });
@@ -229,6 +232,23 @@ export default function SeriesDetailsScreen() {
             }
         }
     }, [params.selectedSeason, params.seasonNumber]);
+
+    // SYNC SELECTED SEASON TO PARAMS FOR HEADER
+    useEffect(() => {
+        if (id) {
+            router.setParams({ selectedSeason: selectedSeason.toString() });
+        }
+    }, [selectedSeason, id]);
+
+    // LISTEN FOR HEADER TRIGGER TO OPEN SEASON PICKER
+    useEffect(() => {
+        if (params.openSeasonPicker) {
+            console.log("[SeriesDetails] Header triggered season picker");
+            setIsSeasonPopupOpen(true);
+            // Clear the trigger param
+            router.setParams({ openSeasonPicker: undefined } as any);
+        }
+    }, [params.openSeasonPicker]);
 
     const [showHeartPopup, setShowHeartPopup] = useState(false);
     const [isUnlikingPopup, setIsUnlikingPopup] = useState(false);
@@ -1470,10 +1490,10 @@ export default function SeriesDetailsScreen() {
                 {/* 5. TABS STICKY HEADER */}
                 <View onLayout={(e) => { tabsY.current = e.nativeEvent.layout.y; }}>
                     <TabsHeader
-                        tabs={['Episodes', 'Reviews', 'Cast & Crew', 'Seasons']}
+                        tabs={['Episodes', 'Reviews', 'Cast & Crew']}
                         activeTab={activeTab}
                         onTabPress={(tab) => {
-                            const tabs = ['Episodes', 'Reviews', 'Cast & Crew', 'Seasons'];
+                            const tabs = ['Episodes', 'Reviews', 'Cast & Crew'];
                             handleTabPress(tab, tabs.indexOf(tab));
                         }}
                         scrollX={tabScrollX}
@@ -1493,10 +1513,10 @@ export default function SeriesDetailsScreen() {
                         )}
                         onMomentumScrollEnd={(e) => {
                             const index = Math.round(e.nativeEvent.contentOffset.x / width);
-                            const tabs = ['Episodes', 'Reviews', 'Cast & Crew', 'Seasons'];
+                            const tabs = ['Episodes', 'Reviews', 'Cast & Crew'];
                             setActiveTab(tabs[index]);
                         }}
-                        contentContainerStyle={{ width: width * 4 }}
+                        contentContainerStyle={{ width: width * 3 }}
                     >
                         {/* 1. EPISODES TAB */}
                         <View style={{ width, minHeight: 400, overflow: 'hidden' }}>
@@ -1537,62 +1557,63 @@ export default function SeriesDetailsScreen() {
                             <CastCrewTab
                                 seasonCredits={allSeasonCredits}
                                 onViewMore={() => {
-                                    const currentSeason = details.seasons.find((s: any) => s.season_number === selectedSeason);
-                                    router.push({
-                                        pathname: `/series-credits/${details.id}`,
-                                        params: {
-                                            season: selectedSeason,
-                                            seasonName: currentSeason?.name || `Season ${selectedSeason}`
-                                        }
-                                    } as any);
+                                    router.push(`/series-seasons/${details.id}` as any);
                                 }}
                             />
                         </View>
 
-                        {/* 4. SEASONS TAB */}
-                        <View style={{ width, minHeight: 400, overflow: 'hidden' }}>
-                            {loading ? (
-                                <ActivityIndicator size="large" color="#FFD600" style={{ marginTop: 40 }} />
-                            ) : (
-                                <SeasonsTab
-                                    seasons={details?.seasons || []}
-                                    selectedSeason={selectedSeason}
-                                    onSeasonSelect={(s) => {
-                                        handleSeasonChange(s);
-                                    }}
-                                    onViewMore={() => {
-                                        router.push(`/series-seasons/${details.id}` as any);
-                                    }}
-                                />
-                            )}
-                        </View>
+                        {/* 4. SEASONS TAB REMOVED */}
 
                     </Animated.ScrollView>
                 </View>
             </Animated.ScrollView >
 
-            {/* MODALS */}
+            {/* NEW SEASON PICKER MODAL */}
             < NativeModal
                 visible={isSeasonPopupOpen}
                 transparent
                 animationType="fade"
-                onRequestClose={() => setIsSeasonPopupOpen(false)
-                }
+                onRequestClose={() => setIsSeasonPopupOpen(false)}
             >
-                <Pressable style={styles.modalOverlay} onPress={() => setIsSeasonPopupOpen(false)}>
-                    <View style={styles.modalContent}>
-                        <ScrollView>
-                            {details?.seasons?.map((s: any) => (
-                                <GHTouchableOpacity key={s.id} onPress={() => handleSeasonChange(s.season_number)} style={styles.modalItem} activeOpacity={0.7}>
-                                    <View style={[styles.modalItem, s.season_number === selectedSeason && styles.modalItemSelected]}>
-                                        <Text style={styles.modalText}>{s.name || `Season ${s.season_number}`}</Text>
-                                    </View>
-                                </GHTouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                </Pressable>
-            </NativeModal >
+                <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill}>
+                    <Pressable style={styles.modalOverlay} onPress={() => setIsSeasonPopupOpen(false)}>
+                        <View style={styles.pickerContent}>
+                            <Text style={styles.pickerTitle}>SELECT SEASON</Text>
+                            <ScrollView
+                                style={{ width: '100%' }}
+                                contentContainerStyle={styles.pickerScrollContent}
+                                showsVerticalScrollIndicator={false}
+                            >
+                                {details?.seasons?.map((s: any) => (
+                                    <Pressable
+                                        key={s.id}
+                                        style={styles.pickerItem}
+                                        onPress={() => handleSeasonChange(s.season_number)}
+                                    >
+                                        <Image
+                                            source={{ uri: `https://image.tmdb.org/t/p/w200${s.poster_path || details.poster_path}` }}
+                                            style={styles.pickerPoster}
+                                            contentFit="cover"
+                                            transition={200}
+                                        />
+                                        <View style={styles.pickerItemInfo}>
+                                            <Text style={[
+                                                styles.pickerSeasonName,
+                                                s.season_number === selectedSeason && { color: '#FFCC00' }
+                                            ]}>
+                                                {s.name || `Season ${s.season_number}`}
+                                            </Text>
+                                            <Text style={styles.pickerYear}>
+                                                {s.air_date ? new Date(s.air_date).getFullYear() : 'N/A'}
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </Pressable>
+                </BlurView>
+            </ NativeModal >
 
             <NativeModal
                 visible={showLimitWarning}
@@ -1880,28 +1901,56 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center'
     },
-    modalContent: {
-        width: 200,
-        maxHeight: 300,
-        backgroundColor: '#1a1a1a',
+    pickerContent: {
+        width: '100%',
+        maxHeight: '80%',
+        alignItems: 'center',
+    },
+    pickerTitle: {
+        color: '#FFF',
+        fontSize: 18,
+        fontFamily: 'Anton-Regular',
+        marginBottom: 30,
+        letterSpacing: 2,
+        textTransform: 'uppercase',
+    },
+    pickerScrollContent: {
+        paddingHorizontal: 20,
+        paddingBottom: 40,
+        alignItems: 'center',
+    },
+    pickerItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+        width: width * 0.85,
+    },
+    pickerPoster: {
+        width: 70,
+        height: 100,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#333',
-        padding: 5
+        borderColor: 'rgba(255,255,255,0.2)',
     },
-    modalItem: {
-        padding: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#222',
-        alignItems: 'center'
+    pickerItemInfo: {
+        marginLeft: 20,
+        flex: 1,
+        justifyContent: 'center',
     },
-    modalItemSelected: {
-        backgroundColor: 'rgba(255, 214, 0, 0.1)'
-    },
-    modalText: {
+    pickerSeasonName: {
         color: '#FFF',
-        fontWeight: 'bold'
+        fontSize: 18,
+        fontFamily: 'Anton-Regular',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
+    pickerYear: {
+        color: '#666',
+        fontSize: 14,
+        marginTop: 4,
+        fontWeight: '600',
+    },
+
     celebBox: {
         width: 260,
         backgroundColor: '#000',

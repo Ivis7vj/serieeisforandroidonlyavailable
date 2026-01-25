@@ -148,5 +148,50 @@ export const notificationService = {
             console.error('[NotificationService] Update settings error:', error);
             return false;
         }
+    },
+
+    /**
+     * Check for new episodes for TESTING purposes
+     */
+    checkNewEpisodes: async (userId: string) => {
+        try {
+            // 1. Get User's Watchlist (IDs only)
+            const { data: watchlist } = await supabase
+                .from('watchlist')
+                .select('tmdb_id')
+                .eq('user_id', userId);
+
+            if (!watchlist || watchlist.length === 0) return null;
+            const subscribedIds = new Set(watchlist.map(w => w.tmdb_id));
+
+            // 2. Fetch "Airing Today" from TMDB
+            // We need to import tmdbApi dynamically or assume it's available. 
+            // Better to fetch directly here to avoid circular deps if tmdb imports this service.
+            // But tmdb.ts doesn't import notification-service, so it's safe to import tmdbApi.
+            const { tmdbApi } = require('./tmdb');
+            const airing = await tmdbApi.getNewReleases(); // /tv/airing_today
+
+            // 3. Match
+            const match = airing.find((show: any) => subscribedIds.has(show.id));
+
+            if (match) {
+                // Fetch details to get Next Episode info
+                const details = await tmdbApi.getSeriesDetails(match.id);
+                const nextEp = details.next_episode_to_air || details.last_episode_to_air;
+
+                if (nextEp) {
+                    return {
+                        title: `New Episode: ${match.name}`,
+                        body: `S${nextEp.season_number}E${nextEp.episode_number} "${nextEp.name}" is out now!`,
+                        data: { route: `/series/${match.id}`, season: nextEp.season_number, episode: nextEp.episode_number }
+                    };
+                }
+            }
+
+            return null;
+        } catch (err) {
+            console.error("Check Episodes Error", err);
+            return null;
+        }
     }
 };

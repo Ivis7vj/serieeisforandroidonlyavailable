@@ -173,8 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 })();
                             }
                         } else {
-                            // User deleted from DB
-                            logout();
+                            // User metadata missing? Log but don't force logout to prevent data loss or glitch
+                            console.warn("[Auth] User metadata document not found in Firestore.");
                         }
                     }, (err) => console.error("User Snapshot Error:", err));
                 } else {
@@ -198,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error("Auth init error:", e);
             setIsLoading(false);
         }
-    }, [user]);
+    }, []);
 
     // Simplified refresh (listener handles most cases, but some logic might still need manual trigger)
     const refreshUserData = async () => {
@@ -212,20 +212,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
     const login = async (usernameOrEmail: string, password: string) => {
-        let email = usernameOrEmail;
+        const trimmedInput = usernameOrEmail.trim();
+        let email = trimmedInput;
 
         // If it doesn't look like an email, assume it's a username
-        if (!usernameOrEmail.includes('@')) {
+        if (!trimmedInput.includes('@')) {
             // 1. ANONYMOUS AUTH for PERMISSION (Read 'users')
             if (!auth.currentUser) {
                 await signInAnonymously(auth);
             }
 
             try {
-                const q = query(collection(db, 'users'), where('username', '==', usernameOrEmail));
-                const querySnapshot = await getDocs(q);
+                // TRY CASE-INSENSITIVE FIRST (username_low)
+                let q = query(collection(db, 'users'), where('username_low', '==', trimmedInput.toLowerCase()));
+                let querySnapshot = await getDocs(q);
 
-                // Cleanup Anon Session
+                // FALLBACK TO EXACT MATCH (for existing users who don't have username_low yet)
+                if (querySnapshot.empty) {
+                    console.log(`[Auth] No match for username_low: ${trimmedInput.toLowerCase()}. Trying exact fallback.`);
+                    q = query(collection(db, 'users'), where('username', '==', trimmedInput));
+                    querySnapshot = await getDocs(q);
+                }
+
+                // Cleanup Anon Session before proceeding to real login
                 await signOut(auth);
 
                 if (querySnapshot.empty) {
@@ -233,16 +242,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
                 email = querySnapshot.docs[0].data().email;
             } catch (e) {
-                // Ensure we sign out if error
                 if (auth.currentUser?.isAnonymous) await signOut(auth);
                 throw e;
             }
         }
 
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, email.trim(), password);
     };
 
     const checkUsernameExists = async (username: string) => {
+        const trimmed = username.trim();
+        const low = trimmed.toLowerCase();
+
         // ANONYMOUS AUTH needed for permission
         let createdAnon = false;
         if (!auth.currentUser) {
@@ -251,8 +262,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 createdAnon = true;
             } catch (e: any) {
                 if (e.code === 'auth/admin-restricted-operation') {
-                    // Fallback: If we can't check, we proceed? Or error?
-                    // Error is safer to prevent duplicates.
                     throw new Error("Enable Anonymous Auth in Firebase");
                 }
                 throw e;
@@ -260,9 +269,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-            const q = query(collection(db, 'users'), where('username', '==', username));
+            // Check both current index (username_low) and old exact index for robustness
+            const q = query(collection(db, 'users'), where('username_low', '==', low));
             const querySnapshot = await getDocs(q);
-            return !querySnapshot.empty;
+            if (!querySnapshot.empty) return true;
+
+            const qOld = query(collection(db, 'users'), where('username', '==', trimmed));
+            const querySnapshotOld = await getDocs(qOld);
+            return !querySnapshotOld.empty;
         } finally {
             if (createdAnon) await signOut(auth);
         }
@@ -281,10 +295,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // 3. Create User Profile
             await setDoc(doc(db, 'users', newUser.uid), {
-                username,
-                email,
-                dob,
-                recoveryCode, // Store directly as requested
+                username: username.trim(),
+                username_low: username.trim().toLowerCase(), // Case-insensitive lookup index
+                email: email.trim().toLowerCase(),
+                dob: dob.trim(),
+                recoveryCode: recoveryCode, // Store directly as requested
                 recoveryCodeSeen: true,
                 createdAt: serverTimestamp(),
                 role: 'user',
@@ -330,6 +345,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsSigningUp,
             verifyRecoveryCode: async (username: string, code: string) => {
                 let createdAnon = false;
+                const trimmedUser = username.trim();
+                const trimmedCode = code.trim().toUpperCase(); // Common pattern for codes
+
                 if (!auth.currentUser) {
                     try {
                         await signInAnonymously(auth);
@@ -343,11 +361,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 try {
-                    const cleanCode = code.trim();
+                    // Query using the same resilient username logic
+                    let q = query(collection(db, 'users'), where('username_low', '==', trimmedUser.toLowerCase()));
+                    let querySnapshot = await getDocs(q);
 
-                    // Query for the user by username to find their doc
-                    const q = query(collection(db, 'users'), where('username', '==', username));
-                    const querySnapshot = await getDocs(q);
+                    if (querySnapshot.empty) {
+                        q = query(collection(db, 'users'), where('username', '==', trimmedUser));
+                        querySnapshot = await getDocs(q);
+                    }
 
                     if (querySnapshot.empty) {
                         return null; // User not found
@@ -356,8 +377,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     const userDoc = querySnapshot.docs[0];
                     const userData = userDoc.data();
 
-                    // Compare stored code with provided code
-                    if (userData.recoveryCode === cleanCode) {
+                    // Compare stored code with provided code (Normalized case)
+                    const storedCode = (userData.recoveryCode || '').trim().toUpperCase();
+
+                    if (storedCode === trimmedCode) {
                         return userDoc.id; // Return UID on success
                     }
 

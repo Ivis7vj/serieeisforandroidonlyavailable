@@ -102,10 +102,42 @@ export default function WeeklyTopScreen() {
         const fetchTop = async () => {
             setLoading(true);
             try {
-                const data = await tmdbApi.getTrending('week');
-                setSeries(data.slice(0, 10));
+                // Fetch LATEST available ranking from Supabase
+                // We order by week_id DESC to get the newest week first
+                const { data, error } = await supabase
+                    .from('weekly_top_series')
+                    .select('*')
+                    .order('week_id', { ascending: false })
+                    .order('rank', { ascending: true });
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    // Filter to only show the LATEST week found
+                    // (Since we order by week_id DESC, the first item has the latest week_id)
+                    const latestWeekId = data[0].week_id;
+                    const latestData = data.filter((item: any) => item.week_id === latestWeekId);
+
+                    const enriched = await Promise.all(latestData.map(async (row: any) => {
+                        try {
+                            const details = await tmdbApi.getSeriesDetails(row.series_id);
+                            return {
+                                ...details,
+                                ...row,
+                                id: row.series_id
+                            };
+                        } catch (err) {
+                            console.error(`Failed to load details for ${row.series_id}`, err);
+                            return null;
+                        }
+                    }));
+                    setSeries(enriched.filter(Boolean));
+                } else {
+                    setSeries([]);
+                }
             } catch (e) {
-                console.error(e);
+                console.error('Fetch Top Error:', e);
+                setSeries([]);
             } finally {
                 setLoading(false);
             }
@@ -113,19 +145,38 @@ export default function WeeklyTopScreen() {
         fetchTop();
     }, [isRevealMode]);
 
-    const fetchStats = async (tmdbId: number) => {
+    // Helper NOT needed for fetching anymore, but good for reference
+    const getWeekId = () => {
+        // ... (Logic kept if needed elsewhere, or can be removed)
+        return "";
+    };
+
+    const fetchStats = async (item: any) => {
+        setSelectedId(item.id);
+
+        // CASE 1: Pre-calculated stats available (from Weekly DB)
+        if (item.liked_count !== undefined) {
+            setStats({
+                likes: item.liked_count || 0,
+                tracked: item.tracked_count || 0,
+                rated: item.rated_count || 0,
+                watched: item.watched_count || 0
+            });
+            return;
+        }
+
+        // CASE 2: Fallback (TMDB Item) -> Fetch Live Stats
         setStatsLoading(true);
-        setSelectedId(tmdbId);
         try {
             const cutoff = getCutoffDate().toISOString();
 
             // Filter by cutoff: Only interactions BEFORE Sunday 12 AM
             const [likes, watchlist, ratedS, ratedE, watched] = await Promise.all([
-                supabase.from('likes').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', tmdbId).lt('created_at', cutoff),
-                supabase.from('watchlist').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', tmdbId).lt('created_at', cutoff),
-                supabase.from('season_ratings').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', tmdbId).lt('created_at', cutoff),
-                supabase.from('episode_ratings').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', tmdbId).lt('created_at', cutoff),
-                supabase.from('watched_episodes').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', tmdbId).lt('created_at', cutoff)
+                supabase.from('likes').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', item.id).lt('created_at', cutoff),
+                supabase.from('watchlist').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', item.id).lt('created_at', cutoff),
+                supabase.from('season_ratings').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', item.id).lt('created_at', cutoff),
+                supabase.from('episode_ratings').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', item.id).lt('created_at', cutoff),
+                supabase.from('watched_episodes').select('user_id', { count: 'exact', head: true }).eq('tmdb_id', item.id).lt('created_at', cutoff)
             ]);
 
             setStats({
@@ -136,6 +187,7 @@ export default function WeeklyTopScreen() {
             });
         } catch (e) {
             console.error('Stats Error:', e);
+            setStats(null);
         } finally {
             setStatsLoading(false);
         }
@@ -145,7 +197,7 @@ export default function WeeklyTopScreen() {
         const resolvedPoster = getResolvedPosterUrl(item.id, item.poster_path, globalPosters);
 
         return (
-            <Pressable key={item.id} style={styles.posterCard} onPress={() => fetchStats(item.id)}>
+            <Pressable key={item.id} style={styles.posterCard} onPress={() => fetchStats(item)}>
                 <View style={styles.imageContainer}>
                     <Image source={{ uri: resolvedPoster ?? undefined }} style={styles.posterImage} />
                     {/* Ribbon Logic */}

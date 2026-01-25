@@ -12,8 +12,10 @@ import {
     Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInRight } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { ArrowLeft, Star, Share } from 'lucide-react-native';
+import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 
@@ -27,9 +29,11 @@ import { db } from '@/utils/firebase';
 import { collection, query, where, orderBy, limit, getDocs, startAfter, doc, getDoc } from 'firebase/firestore';
 import { getUserProfileData } from '@/utils/profile-service';
 import ActivityFeed from '@/components/activity-feed';
+import { getUserReviews } from '@/utils/review-service';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { triggerSelection } from '@/utils/haptics';
 import ReviewItem from '@/components/series/ReviewItem';
+import DiaryDetailDrawer from '@/components/diary/DiaryDetailDrawer';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -49,7 +53,7 @@ const PosterGridItem = ({ item, onPress, showBadges = false, userPosters }: Post
     const seriesId = String(item.seriesId || item.tmdbId || item.tmdb_id || item.id);
 
     const resolvedUrl = useMemo(() => {
-        return getResolvedPosterUrl(seriesId, rawPoster, userPosters, 'w342', item.seasonNumber);
+        return getResolvedPosterUrl(seriesId, rawPoster, userPosters, 'w342', item.seasonNumber, true, true);
     }, [seriesId, rawPoster, userPosters, item.seasonNumber]);
 
     return (
@@ -87,11 +91,15 @@ export default function ProfileSectionScreen() {
     const { currentUser } = useAuth();
     const targetUid = uid as string;
     const sectionType = type as string;
+    const highlightExport = useLocalSearchParams().highlightExport === 'true'; // Check param
     const isOwnProfile = targetUid === currentUser?.uid;
 
     const [profileData, setProfileData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Diary Drawer State
+    const [selectedEntry, setSelectedEntry] = useState<any>(null);
 
     // Export State
     const [showExportConfig, setShowExportConfig] = useState(false);
@@ -112,38 +120,45 @@ export default function ProfileSectionScreen() {
     const [userList, setUserList] = useState<any[]>([]);
     const [loadingUserList, setLoadingUserList] = useState(false);
 
-    const fetchReviews = async (isInitial = false) => {
-        if (!targetUid || (loadingReviews && !isInitial)) return;
+    // REVIEWS FETCH (Direct Supabase)
+    const fetchProfileReviews = useCallback(async () => {
+        if (!targetUid) return;
         setLoadingReviews(true);
         try {
-            let q = query(
-                collection(db, 'reviews'),
-                where('userId', '==', targetUid),
-                orderBy('createdAt', 'desc'),
-                limit(10)
-            );
+            const data = await getUserReviews(targetUid);
+            const mapped = data.map((item: any) => ({
+                id: item.id,
+                userId: targetUid,
+                userName: profileData?.userInfo?.username || item.userName || 'User',
+                photoURL: profileData?.userInfo?.photoURL || item.photoURL,
+                rating: item.rating,
+                review: item.review,
+                seriesName: item.seriesName || item.name,
+                poster_path: item.poster_path,
+                seasonNumber: item.seasonNumber,
+                episodeNumber: item.episodeNumber,
+                isEpisode: !!item.isEpisode,
+                tmdbId: item.tmdbId,
+                date: item.createdAt,
+                createdAt: item.createdAt
+            }));
 
-            if (!isInitial && lastReview) {
-                q = query(q, startAfter(lastReview));
-            }
+            // Explicit Sort: Newest First
+            mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-            const snap = await getDocs(q);
-            const fetched = snap.docs.map(d => ({ ...d.data(), id: d.id }));
-
-            if (fetched.length < 10) setHasMoreReviews(false);
-            setLastReview(snap.docs[snap.docs.length - 1]);
-
-            if (isInitial) {
-                setReviews(fetched);
-            } else {
-                setReviews(prev => [...prev, ...fetched]);
-            }
-        } catch (e) {
-            console.error("Error fetching reviews:", e);
+            setReviews(mapped);
+        } catch (error) {
+            console.error("Failed to fetch profile reviews:", error);
         } finally {
             setLoadingReviews(false);
         }
-    };
+    }, [targetUid, profileData?.userInfo]);
+
+    useEffect(() => {
+        if (sectionType === 'Reviews') {
+            fetchProfileReviews();
+        }
+    }, [targetUid, sectionType, fetchProfileReviews]);
 
     const fetchUserList = async (uids: string[]) => {
         if (!uids || uids.length === 0) return;
@@ -170,7 +185,7 @@ export default function ProfileSectionScreen() {
             setProfileData(data);
 
             if (sectionType === 'Reviews') {
-                fetchReviews(true);
+                fetchProfileReviews();
             } else if (sectionType === 'Followers') {
                 fetchUserList(data?.userInfo?.followers || []);
             } else if (sectionType === 'Following') {
@@ -182,7 +197,7 @@ export default function ProfileSectionScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [targetUid, sectionType, lastReview, loadingReviews]);
+    }, [targetUid, sectionType]);
 
     const { useFocusEffect } = require('expo-router');
     useFocusEffect(
@@ -199,13 +214,41 @@ export default function ProfileSectionScreen() {
     const getDiaryGroups = () => {
         if (!profileData?.diary) return {};
         const groups: { [key: string]: any[] } = {};
+
+        // Sort strictly by date descending
         const sorted = [...profileData.diary].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         sorted.forEach(item => {
             const date = new Date(item.date);
-            const key = `${date.toLocaleString('default', { month: 'long' })} ${date.getFullYear()}`;
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(item);
+            if (isNaN(date.getTime())) return;
+
+            const monthKey = `${date.toLocaleString('default', { month: 'long' })} ${date.getFullYear()}`;
+            if (!groups[monthKey]) groups[monthKey] = [];
+
+            // Grouping Logic: Unique per Series+Season in this Month
+            const existingIndex = groups[monthKey].findIndex(g =>
+                (String(g.tmdbId) === String(item.tmdbId)) &&
+                Number(g.seasonNumber) === Number(item.seasonNumber)
+            );
+
+            if (existingIndex > -1) {
+                // Merge
+                const existing = groups[monthKey][existingIndex];
+
+                const existingEps = existing.episodeCount || (existing.isEpisode ? 1 : 0);
+                const currentEps = item.isEpisode ? 1 : 0;
+
+                groups[monthKey][existingIndex] = {
+                    ...existing, // Keep newest (sorted)
+                    episodeCount: existingEps + currentEps,
+                    isSeason: existing.isSeason || item.isSeason,
+                };
+            } else {
+                groups[monthKey].push({
+                    ...item,
+                    episodeCount: item.isEpisode ? 1 : undefined
+                });
+            }
         });
         return groups;
     };
@@ -245,19 +288,86 @@ export default function ProfileSectionScreen() {
         return processed;
     };
 
+    // REAL-TIME UPDATE HANDLERS
+    // REAL-TIME UPDATE HANDLERS
+    const handleEntryUpdate = (updatedEntry: any) => {
+        // Update Local Reviews List (if looking at reviews)
+        if (sectionType === 'Reviews') {
+            setReviews(prev => prev.map(item =>
+                item.id === updatedEntry.id ? { ...item, ...updatedEntry } : item
+            ));
+        }
+
+        if (!profileData || !profileData.diary) return;
+
+        // 1. Update Diary List (Supabase Source)
+        const newDiary = profileData.diary.map((item: any) =>
+            item.id === updatedEntry.id ? updatedEntry : item
+        );
+        setProfileData({ ...profileData, diary: newDiary });
+    };
+
+    const handleEntryDelete = (entryId: string) => {
+        if (sectionType === 'Reviews') {
+            setReviews(prev => prev.filter(item => item.id !== entryId));
+        }
+
+        if (!profileData || !profileData.diary) return;
+
+        // 1. Update Diary List
+        const newDiary = profileData.diary.filter((item: any) => item.id !== entryId);
+        setProfileData({ ...profileData, diary: newDiary });
+    };
+
+    const [reviewFilter, setReviewFilter] = useState<'ALL' | 'SEASON' | 'EPISODE'>('ALL');
+
     const renderHeader = () => (
         <View style={[styles.header, { paddingTop: insets.top }]}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                 <ArrowLeft color="#FFF" size={28} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{sectionType}</Text>
+
+            <View style={{ flex: 1 }}>
+                <Text style={styles.headerTitle}>{sectionType}</Text>
+            </View>
+
+            {sectionType === 'Reviews' && (
+                <View style={styles.filterRow}>
+                    {(['All', 'Season', 'Episode'] as const).map((label) => {
+                        const type = label.toUpperCase() as 'ALL' | 'SEASON' | 'EPISODE';
+                        const isActive = reviewFilter === type;
+                        return (
+                            <TouchableOpacity
+                                key={type}
+                                onPress={() => setReviewFilter(type)}
+                                style={[styles.filterBtn, isActive && styles.filterBtnActive]}
+                            >
+                                <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            )}
+
             {sectionType === 'Diary' && isOwnProfile && (
-                <TouchableOpacity
-                    onPress={() => setShowExportConfig(true)}
-                    style={styles.exportBtn}
-                >
-                    <Share color="#FFCC00" size={24} />
-                </TouchableOpacity>
+                <View style={{ position: 'relative', flexDirection: 'row', alignItems: 'center' }}>
+                    {/* Tooltip helper */}
+                    {highlightExport && (
+                        <Animated.View
+                            entering={FadeInRight}
+                            style={styles.exportTooltip}
+                        >
+                            <Text style={styles.exportTooltipText}>Export now</Text>
+                            <View style={styles.exportTooltipArrow} />
+                        </Animated.View>
+                    )}
+                    <TouchableOpacity
+                        onPress={() => setShowExportConfig(true)}
+                        style={styles.exportBtn}
+                    >
+                        <Share color="#FFCC00" size={24} />
+                    </TouchableOpacity>
+                </View>
             )}
         </View>
     );
@@ -270,10 +380,18 @@ export default function ProfileSectionScreen() {
 
         switch (sectionType) {
             case 'Reviews':
+                const filteredReviews = reviews.filter(r => {
+                    if (reviewFilter === 'SEASON') return !r.isEpisode;
+                    if (reviewFilter === 'EPISODE') return r.isEpisode;
+                    return true;
+                });
+
+                if (filteredReviews.length === 0) return <Text style={styles.emptyText}>No reviews found.</Text>;
+
                 return (
                     <View style={styles.content}>
                         <View style={{ paddingHorizontal: 0 }}>
-                            {reviews.map((review) => (
+                            {filteredReviews.map((review) => (
                                 <ReviewItem
                                     key={review.id}
                                     review={review}
@@ -285,25 +403,21 @@ export default function ProfileSectionScreen() {
                                             const isHalf = score >= i - 0.5 && score < i;
                                             stars.push(
                                                 <View key={i} style={{ position: 'relative' }}>
-                                                    <Star size={size} color={isFull || isHalf ? "#FFCC00" : "#333"} fill={isFull ? "#FFCC00" : "transparent"} strokeWidth={2} />
-                                                    {isHalf && (
-                                                        <View style={{ position: 'absolute', top: 0, left: 0, width: size / 2, overflow: 'hidden' }}>
-                                                            <Star size={size} color="#FFCC00" fill="#FFCC00" strokeWidth={2} />
-                                                        </View>
-                                                    )}
+                                                    <FontAwesome
+                                                        name={isFull ? "star" : (isHalf ? "star-half-full" : "star-o")}
+                                                        size={size}
+                                                        color={isFull || isHalf ? "#FFCC00" : "#333"}
+                                                    />
                                                 </View>
                                             );
                                         }
                                         return <View style={{ flexDirection: 'row', gap: 2 }}>{stars}</View>;
                                     }}
                                     isMe={review.userId === currentUser?.uid}
+                                    onPress={() => setSelectedEntry(review)} // Open Drawer instead of Navigating
                                 />
                             ))}
-                            {hasMoreReviews && (
-                                <TouchableOpacity style={styles.loadMoreBtn} onPress={() => fetchReviews()} disabled={loadingReviews}>
-                                    {loadingReviews ? <ActivityIndicator size="small" color="#FFCC00" /> : <Text style={styles.loadMoreText}>LOAD MORE</Text>}
-                                </TouchableOpacity>
-                            )}
+                            {/* Load More Button Removed */}
                         </View>
                     </View>
                 );
@@ -323,14 +437,7 @@ export default function ProfileSectionScreen() {
                                             <View key={idx} style={{ width: TILE_SIZE, marginBottom: 20 }}>
                                                 <PosterGridItem
                                                     item={item}
-                                                    onPress={() => {
-                                                        const route = `/series/${item.tmdbId || item.id}`;
-                                                        if (item.seasonNumber) {
-                                                            router.push({ pathname: route, params: { seasonNumber: item.seasonNumber } } as any);
-                                                        } else {
-                                                            router.push(route as any);
-                                                        }
-                                                    }}
+                                                    onPress={() => setSelectedEntry(item)}
                                                     showBadges
                                                     userPosters={userPosters}
                                                 />
@@ -511,7 +618,9 @@ export default function ProfileSectionScreen() {
                 item.posterPath,
                 profileData.userPosters,
                 'w342',
-                item.seasonNumber
+                item.seasonNumber,
+                true,
+                true
             )
         }));
     };
@@ -521,7 +630,7 @@ export default function ProfileSectionScreen() {
             {renderHeader()}
             <ScrollView
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFCC00" />}
-                contentContainerStyle={{ paddingBottom: 100 }}
+                contentContainerStyle={{ paddingBottom: 40 }}
             >
                 {renderContent()}
             </ScrollView>
@@ -580,6 +689,15 @@ export default function ProfileSectionScreen() {
                     </View>
                 </View>
             )}
+
+            <DiaryDetailDrawer
+                visible={!!selectedEntry}
+                entry={selectedEntry}
+                onClose={() => setSelectedEntry(null)}
+                onUpdate={handleEntryUpdate}
+                onDelete={handleEntryDelete}
+                userPosters={profileData?.userPosters}
+            />
         </View>
     );
 }
@@ -606,6 +724,12 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
     content: { paddingVertical: 16 },
+    // Filter Styles
+    filterRow: { flexDirection: 'row', marginLeft: 'auto', gap: 8, marginRight: 15 },
+    filterBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15, borderWidth: 1, borderColor: '#333' },
+    filterBtnActive: { borderColor: '#FFCC00', backgroundColor: 'rgba(255, 204, 0, 0.1)' },
+    filterText: { color: '#666', fontSize: 11, fontWeight: '700' },
+    filterTextActive: { color: '#FFCC00' },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP, justifyContent: 'flex-start' },
     diaryGroup: { marginBottom: 25 },
     diaryMonthHeader: { color: '#888', fontWeight: '900', marginBottom: 15, fontSize: 16, paddingHorizontal: 16 },
@@ -616,7 +740,7 @@ const styles = StyleSheet.create({
     diarySeasonText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
     epsBadge: { position: 'absolute', bottom: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.8)', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
     epsText: { color: '#888', fontSize: 10, fontWeight: 'bold' },
-    diaryDateBadge: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
+    diaryDateBadge: { position: 'absolute', bottom: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
     diaryDateText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
     exportBtn: {
         marginLeft: 'auto',
@@ -694,4 +818,8 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: 'bold',
     },
+
+    exportTooltip: { position: 'absolute', right: 50, backgroundColor: '#FFCC00', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, zIndex: 99, flexDirection: 'row', alignItems: 'center' },
+    exportTooltipText: { color: '#000', fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+    exportTooltipArrow: { position: 'absolute', right: -6, top: 8, width: 0, height: 0, borderTopWidth: 6, borderTopColor: 'transparent', borderBottomWidth: 6, borderBottomColor: 'transparent', borderLeftWidth: 6, borderLeftColor: '#FFCC00' }
 });

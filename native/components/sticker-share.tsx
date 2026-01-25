@@ -74,6 +74,12 @@ const StickerShare = forwardRef<ViewShot, StickerShareProps>(({
                             <Text style={styles.brandRest}>ERIEE</Text>
                         </View>
                     </LinearGradient>
+
+                    {/* RATING BADGE (Bottom Right) */}
+                    <View style={styles.ratingBadgePoster}>
+                        <FontAwesome name="star" size={28} color="#FFD600" />
+                        <Text style={styles.ratingTextPoster}>{normalizedRating.toFixed(1)}</Text>
+                    </View>
                 </View>
 
                 {/* SERIES TITLE (Below Poster) */}
@@ -213,6 +219,25 @@ const styles = StyleSheet.create({
         fontSize: 64,
         color: '#ffffff',
         letterSpacing: 5,
+    },
+    ratingBadgePoster: {
+        position: 'absolute',
+        bottom: 20,
+        right: 20,
+        backgroundColor: '#000',
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        gap: 8,
+        zIndex: 10,
+    },
+    ratingTextPoster: {
+        color: '#FFF',
+        fontSize: 28,
+        fontWeight: '900',
+        fontFamily: 'Anton-Regular',
     },
     seriesTitle: {
         fontFamily: 'Anton-Regular',

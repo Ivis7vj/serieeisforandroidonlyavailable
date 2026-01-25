@@ -2,7 +2,9 @@ import { supabase } from './supabase';
 import { db } from './firebase';
 import { doc, getDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { logActivity } from './activity-logger';
+
 import { tmdbApi } from './tmdb';
+import { handleServiceError } from '@/utils/network-event';
 
 export const getWatchedEpisodes = async (userId: string, tmdbId: number) => {
     if (!userId || !tmdbId) return [];
@@ -46,7 +48,7 @@ export const getWatchedEpisodes = async (userId: string, tmdbId: number) => {
         }
         return [];
     } catch (error) {
-        console.error("[WatchedService] Error:", error);
+        handleServiceError(error, 'WatchedService');
         return [];
     }
 };
@@ -86,7 +88,7 @@ export const markEpisodeWatched = async (userId: string, tmdbId: number, seasonN
 
         return true;
     } catch (error) {
-        console.error("[WatchedService] Mark Episode Error:", error);
+        handleServiceError(error, 'WatchedService');
         return false;
     }
 };
@@ -119,7 +121,7 @@ export const unmarkEpisodeWatched = async (userId: string, tmdbId: number, seaso
 
         return true;
     } catch (error) {
-        console.error("[WatchedService] Unmark Error:", error);
+        handleServiceError(error, 'WatchedService');
         return false;
     }
 };
@@ -135,7 +137,7 @@ export const getAllWatched = async (userId: string) => {
         if (error) throw error;
         return data || [];
     } catch (error) {
-        console.error("[WatchedService] Get All Error:", error);
+        handleServiceError(error, 'WatchedService');
         return [];
     }
 };
@@ -155,7 +157,7 @@ export const markSeasonWatched = async (userId: string, tmdbId: number, seasonNu
             .upsert(episodes, { onConflict: 'user_id,tmdb_id,season_number,episode_number' });
 
         if (error) {
-            console.error("[WatchedService] Mark Season Upsert Error:", error);
+            handleServiceError(error, 'WatchedService');
             throw error;
         }
 
@@ -181,7 +183,7 @@ export const markSeasonWatched = async (userId: string, tmdbId: number, seasonNu
         return true;
         // ... existing code ...
     } catch (error) {
-        console.error("[WatchedService] Mark Season Error:", error);
+        handleServiceError(error, 'WatchedService');
         return false;
     }
 };
@@ -212,7 +214,7 @@ export const unmarkSeasonWatched = async (userId: string, tmdbId: number, season
 
         return true;
     } catch (error) {
-        console.error("[WatchedService] Unmark Season Error:", error);
+        handleServiceError(error, 'WatchedService');
         return false;
     }
 };
@@ -269,7 +271,7 @@ export const getLatestWatchedSeriesId = async (userId: string) => {
         return winner.id;
 
     } catch (error) {
-        console.error("[WatchedService] Get Latest Error:", error);
+        handleServiceError(error, 'WatchedService');
         return null;
     }
 };

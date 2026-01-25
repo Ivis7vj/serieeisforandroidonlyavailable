@@ -173,6 +173,38 @@ export default function SettingsScreen() {
                                     thumbColor={notifSettings.weeklyPicks ? '#FFF' : '#666'}
                                 />
                             </View>
+
+                            <Pressable style={[styles.actionBtn, { marginTop: 10, alignSelf: 'flex-start' }]} onPress={async () => {
+                                if (!currentUser) return;
+
+                                setIsDeleting(true); // Re-using loading state or create new one? Let's verify quickly so no need for spinner.
+                                // Actually, let's just run it.
+
+                                const realNotif = await notificationService.checkNewEpisodes(currentUser.uid);
+
+                                import('expo-notifications').then(async (Notifications) => {
+                                    if (realNotif) {
+                                        await Notifications.scheduleNotificationAsync({
+                                            content: {
+                                                title: realNotif.title,
+                                                body: realNotif.body,
+                                                data: realNotif.data
+                                            },
+                                            trigger: {
+                                                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                                                seconds: 3
+                                            }
+                                        });
+                                        Alert.alert("Notification Scheduled", `Found match: ${realNotif.title}. Watch for it in 3 seconds!`);
+                                    } else {
+                                        Alert.alert("No New Episodes", "None of your subscribed shows have new episodes airing today. (This is real data!)");
+                                    }
+                                });
+                                setIsDeleting(false);
+                            }}>
+                                <Bell size={18} color="#FFCC00" />
+                                <Text style={[styles.btnText, { fontSize: 14, color: '#FFCC00' }]}>Test Notification (Real Data)</Text>
+                            </Pressable>
                         </View>
                     </View>
 

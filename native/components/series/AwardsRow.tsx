@@ -4,6 +4,7 @@ import { Award, Star, Check } from 'lucide-react-native';
 
 import { AwardItem } from '@/data/awards';
 import { tvdbApi } from '@/utils/tvdb-service';
+import { handleServiceError } from '@/utils/network-event';
 
 interface AwardsRowProps {
     seriesId: number;
@@ -116,7 +117,7 @@ const AwardsRow: React.FC<AwardsRowProps> = ({ seriesId, imdbId, tvdbId, release
                     }
                 }
             } catch (error) {
-                console.warn('[AwardsRow] Fetch Error:', error);
+                handleServiceError(error, 'AwardsRow');
             } finally {
                 setLoading(false);
             }

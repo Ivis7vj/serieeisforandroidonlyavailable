@@ -3,6 +3,10 @@ import { Stack } from 'expo-router';
 import { NotificationToast } from '@/components/NotificationToast';
 import { UpdateService, UpdateInfo } from '../src/services/UpdateService';
 import { UpdatePopup } from '../src/components/updates/UpdatePopup';
+import { MonthEndPopup } from '@/components/popups/MonthEndPopup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DeviceEventEmitter } from 'react-native';
+import { NETWORK_ERROR_EVENT } from '@/utils/network-event';
 
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
@@ -14,6 +18,8 @@ import { useEffect, useState } from 'react';
 import { useSegments, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import * as Network from 'expo-network';
+import { NetworkBlocker } from '@/components/security/NetworkBlocker';
 
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -52,6 +58,97 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastContent, setToastContent] = useState({ title: '', message: '' });
+  const [isOffline, setIsOffline] = useState(false);
+
+  const [showMonthEndPopup, setShowMonthEndPopup] = useState(false);
+
+  // Month End Trigger Logic
+  useEffect(() => {
+    const checkMonthEnd = async () => {
+      if (!currentUser || isGuest) return;
+
+      const today = new Date();
+      // Check if tomorrow is the 1st of next month (robust way to find last day)
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      // Real Logic: Check if Last Day of Month
+      const isLastDay = tomorrow.getDate() === 1;
+
+      if (isLastDay) {
+        const key = `month_end_shown_${today.getMonth()}_${today.getFullYear()}`;
+        const shown = await AsyncStorage.getItem(key);
+        if (!shown) {
+          setShowMonthEndPopup(true);
+        }
+      }
+    };
+
+    // Check after a small delay to ensure app is interactive
+    const t = setTimeout(checkMonthEnd, 3000);
+    return () => clearTimeout(t);
+  }, [currentUser, isGuest]);
+
+  // Global Error Listener for suppressed network errors
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(NETWORK_ERROR_EVENT, () => {
+      setIsOffline(true);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const handleMonthEndDraw = async () => {
+    setShowMonthEndPopup(false);
+    const today = new Date();
+    const key = `month_end_shown_${today.getMonth()}_${today.getFullYear()}`;
+    await AsyncStorage.setItem(key, 'true');
+
+    // Navigate to Diary with Export Highlight
+    router.push({
+      pathname: '/profile-section',
+      params: {
+        uid: currentUser?.uid,
+        type: 'Diary',
+        highlightExport: 'true'
+      }
+    } as any);
+  };
+
+  const closeMonthEnd = async () => {
+    setShowMonthEndPopup(false);
+    // Mark as shown so we don't spam
+    const today = new Date();
+    const key = `month_end_shown_${today.getMonth()}_${today.getFullYear()}`;
+    await AsyncStorage.setItem(key, 'true');
+  };
+
+  // Network Monitoring
+  useEffect(() => {
+    // Check initial state
+    Network.getNetworkStateAsync().then(state => {
+      if (state.isConnected === false) setIsOffline(true);
+    });
+
+    // Check periodically as expo-network doesn't have a reliable "listener" for all platforms in Expo GO without NetInfo
+    // But we can check on focus or specific intervals if needed.
+    // However, user said "show blocker when connection failed in backend"
+    // So we can also trigger it from the blocker itself or a global state.
+    const interval = setInterval(async () => {
+      const state = await Network.getNetworkStateAsync();
+      if (state.isConnected === false) {
+        setIsOffline(true);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const rootSegment = segments?.[0];
+  const isAtLogin = rootSegment === 'login';
+  const isAtTabs = rootSegment === '(tabs)';
+  const isAtRoot = !rootSegment;
+  const isAtCorrectPlace = ((currentUser || isGuest) && !isAtLogin) || (!currentUser && !isGuest && isAtLogin) || isSigningUp;
+
   useEffect(() => {
     const t = setTimeout(() => setLoadingTimeout(true), 4000);
     return () => clearTimeout(t);
@@ -87,7 +184,6 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     }
 
     // ONLY SHOW CONTENT AND HIDE SPLASH IF WE ARE WHERE WE BELONG
-    const isAtCorrectPlace = (currentUser && isAtTabs) || (!currentUser && isAtLogin) || isSigningUp || isGuest;
     if (!isAtCorrectPlace && !loading) return;
 
     // Aggressive Splash Hide
@@ -101,7 +197,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     };
 
     hideSplash();
-  }, [currentUser, loading, segments, appReady, isGuest]);
+  }, [currentUser, loading, segments, appReady, isGuest, isAtCorrectPlace]);
 
   // Handle Notifications Registration
   useEffect(() => {
@@ -156,7 +252,8 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return () => subscription.remove();
   }, []);
 
-  if (loading || !appReady) {
+  if (loading || !appReady || !isAtCorrectPlace) {
+    // console.log(`Root: Still loading/redirecting... (Auth: ${!authLoading}, CorrectPlace: ${isAtCorrectPlace})`);
     return null; // Keep splash visible by rendering nothing
   }
 
@@ -167,13 +264,14 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: '#000' } }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', contentStyle: { backgroundColor: '#000' } }} />
-          <Stack.Screen name="series/[id]" />
           <Stack.Screen name="friend-activity-detail" options={{ presentation: 'modal', title: 'Activity' }} />
-          <Stack.Screen name="watchlist" />
           <Stack.Screen name="settings" />
           <Stack.Screen name="edit-profile" />
           <Stack.Screen name="banner-search" />
           <Stack.Screen name="share-sticker/index" />
+          <Stack.Screen name="person/[id]" />
+          <Stack.Screen name="series-seasons/[id]" />
+          <Stack.Screen name="series-credits/[id]" />
           <Stack.Screen
             name="profile-section"
             options={{
@@ -198,6 +296,15 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
           title={toastContent.title}
           message={toastContent.message}
           onHide={() => setToastVisible(false)}
+        />
+        <NetworkBlocker
+          isVisible={isOffline}
+          onCancel={() => setIsOffline(false)}
+        />
+        <MonthEndPopup
+          visible={showMonthEndPopup}
+          onClose={closeMonthEnd}
+          onNavigate={handleMonthEndDraw}
         />
         <StatusBar style="light" />
       </ThemeProvider>
@@ -252,21 +359,21 @@ export default function RootLayout() {
   useEffect(() => {
     console.log('Root: Layout mounted');
 
-    // Safety timeout for fonts (1s)
+    // Safety timeout for fonts (10s)
     const t = setTimeout(() => {
       console.log('Root: Font timeout reached');
       setFontTimeout(true);
-    }, 1000);
+    }, 10000);
 
     // 🛡️ COMMIT SIGNAL
 
 
-    // CRITICAL: Force hide splash screen after 1.0 seconds NO MATTER WHAT.
+    // CRITICAL: Force hide splash screen after 12.0 seconds NO MATTER WHAT.
     // This catches cases where fonts/auth fail to signal ready.
     const splashFailsafe = setTimeout(() => {
       console.log('Root: Forcing splash hide (failsafe)');
       SplashScreen.hideAsync().catch(() => { });
-    }, 1000);
+    }, 12000);
 
     return () => {
       clearTimeout(t);

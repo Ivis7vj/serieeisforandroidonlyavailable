@@ -1,4 +1,5 @@
 import { AwardItem } from '../data/awards';
+import { handleServiceError } from '@/utils/network-event';
 
 const TVDB_API_KEY = '2e45b22d-f015-435b-a427-99e2312f2842';
 const BASE_URL = 'https://api4.thetvdb.com/v4';
@@ -26,7 +27,7 @@ async function getAuthToken(): Promise<string | null> {
             return cachedToken;
         }
     } catch (error) {
-        console.error('[TVDB] Auth Error:', error);
+        handleServiceError(error, 'TVDB Auth');
     }
     return null;
 }
@@ -54,7 +55,7 @@ export const tvdbApi = {
                 }));
             }
         } catch (error) {
-            console.warn('[TVDB] Fetch Awards Error:', error);
+            handleServiceError(error, 'TVDB Awards');
         }
         return [];
     },
@@ -89,7 +90,7 @@ export const tvdbApi = {
                 }).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
             }
         } catch (error) {
-            console.warn('[TVDB] Fetch Characters Error:', error);
+            handleServiceError(error, 'TVDB Characters');
         }
         return [];
     },

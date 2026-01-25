@@ -4,6 +4,7 @@ import {
     Text,
     StyleSheet,
     ScrollView,
+    FlatList,
     Pressable,
     ActivityIndicator,
     Alert,
@@ -27,208 +28,157 @@ import ReviewItem from '@/components/series/ReviewItem';
 const { width } = Dimensions.get('window');
 
 export default function SeriesReviewsListingScreen() {
-    const { id, seasonNumber, episodeNumber } = useLocalSearchParams();
+    const { id, seasonNumber, filter: initialFilter } = useLocalSearchParams();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { currentUser, userData } = useAuth();
 
     const [reviews, setReviews] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [cursor, setCursor] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(true);
     const [details, setDetails] = useState<any>(null);
 
-    const isEpisode = !!episodeNumber;
-    const isSeason = !!seasonNumber && !episodeNumber;
-    const isSeries = !seasonNumber && !episodeNumber;
-
-    const [filter, setFilter] = useState<'public' | 'friends' | 'you'>('public');
+    const [filter, setFilter] = useState<'public' | 'friends' | 'you'>((initialFilter as any) || 'public');
 
     const changeFilter = (newFilter: 'public' | 'friends' | 'you') => {
+        if (newFilter === filter) return;
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setFilter(newFilter);
+        // Effect will handle reload
     };
 
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
         UIManager.setLayoutAnimationEnabledExperimental(true);
     }
 
+    // Load Data Effect
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const numericId = parseInt(id as string);
-                const numericSeason = seasonNumber ? parseInt(seasonNumber as string) : null;
-                const numericEpisode = episodeNumber ? parseInt(episodeNumber as string) : null;
+        // Reset State for new fetch
+        setReviews([]);
+        setCursor(null);
+        setHasMore(true);
+        loadReviews(false, filter);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filter, id, seasonNumber]);
 
-                // Sync fetches
-                const detailsPromise = tmdbApi.getSeriesDetails(numericId);
-                let reviewsPromise;
+    const loadReviews = async (isNextPage: boolean, currentFilter: string) => {
+        if (isNextPage && (!hasMore || loadingMore)) return;
 
-                if (isEpisode) {
-                    reviewsPromise = reviewService.getEpisodeReviews(numericId, numericSeason!, numericEpisode!);
-                } else if (isSeason) {
-                    reviewsPromise = reviewService.getSeasonReviews(numericId, numericSeason!);
-                } else {
-                    reviewsPromise = reviewService.getSeriesReviews(numericId);
-                }
+        if (isNextPage) setLoadingMore(true);
+        else setLoading(true);
 
-                const [seriesDetails, fetchedReviews] = await Promise.all([detailsPromise, reviewsPromise]);
-                setDetails(seriesDetails);
+        try {
+            const numericId = parseInt(id as string);
+            const numericSeason = parseInt(seasonNumber as string);
 
-                // Filter for context if we are in a season/episode view
-                let finalReviews = fetchedReviews;
-                if (isSeason) {
-                    finalReviews = fetchedReviews.filter((r: any) => !r.seasonNumber || Number(r.seasonNumber) === numericSeason);
-                } else if (isEpisode) {
-                    finalReviews = fetchedReviews.filter((r: any) =>
-                        (!r.seasonNumber && !r.episodeNumber) ||
-                        (Number(r.seasonNumber) === numericSeason && Number(r.episodeNumber) === numericEpisode)
-                    );
-                }
-
-                setReviews(finalReviews.sort((a: any, b: any) => {
-                    const amIAuthor = a.userId === currentUser?.uid;
-                    const bmIAuthor = b.userId === currentUser?.uid;
-                    if (amIAuthor && !bmIAuthor) return -1;
-                    if (!amIAuthor && bmIAuthor) return 1;
-
-                    // Secondary sort: Likes
-                    const aLikes = a.likes?.length || 0;
-                    const bLikes = b.likes?.length || 0;
-                    if (aLikes !== bLikes) return bLikes - aLikes;
-
-                    // Tertiary sort: Newest first (Force newest)
-                    const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                    const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                    return bDate - aDate;
-                }));
-            } catch (error) {
-                console.error("Error fetching reviews:", error);
-            } finally {
-                setLoading(false);
+            // Fetch Details Once
+            if (!details && !isNextPage) {
+                tmdbApi.getSeriesDetails(numericId).then(setDetails);
             }
-        };
 
-        fetchData();
-    }, [id, seasonNumber, episodeNumber]);
+            // Filtering Logic for Service
+            let includeIds: string[] | undefined;
+            let excludeIds: string[] | undefined;
 
-    // Filtering logic (Synchronized with ReviewsTab.tsx)
-    const displayedReviews = reviews.filter(r => {
-        const isMe = r.userId === currentUser?.uid;
-        const isFollowing = userData?.following?.includes(r.userId);
-
-        if (filter === 'public') {
-            // PUBLIC: Keep strict context (Season or Episode)
-            const matchesSeason = Number(r.seasonNumber) === Number(seasonNumber);
-            const matchesEpisode = isEpisode ? Number(r.episodeNumber) === Number(episodeNumber) : true;
-            return !isMe && !isFollowing && matchesSeason && matchesEpisode;
-        } else if (filter === 'friends') {
-            // FRIENDS: Show all activity for the series
-            return isFollowing && !isMe;
-        } else {
-            // YOU: Show all your activity for the series
-            return isMe;
-        }
-    }).map(r => {
-        // Fix for "YOU" section
-        if (r.userId === currentUser?.uid && userData?.username) {
-            return { ...r, userName: userData.username };
-        }
-        return r;
-    });
-
-    const handleDelete = (review: any) => {
-        Alert.alert(
-            "Delete Review?",
-            "Are you sure you want to delete this review?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            if (review.isEpisode) {
-                                await reviewService.deleteEpisodeReview(review.id);
-                            } else {
-                                await reviewService.deleteSeasonReview(review.id);
-                            }
-                            setReviews(prev => prev.filter(r => r.id !== review.id));
-                            triggerImpact();
-                        } catch (e) {
-                            Alert.alert("Error", "Failed to delete review");
-                        }
-                    }
+            if (currentFilter === 'friends') {
+                if (!userData?.following || userData.following.length === 0) {
+                    // No friends? return empty immediately
+                    setReviews([]); setLoading(false); setLoadingMore(false); setHasMore(false); return;
                 }
-            ]
-        );
+                includeIds = userData.following;
+            } else if (currentFilter === 'you') {
+                if (!currentUser) { setReviews([]); setLoading(false); return; }
+                includeIds = [currentUser.uid];
+            } else {
+                // Public: Exclude Me AND Friends to keep sections distinct
+                if (currentUser) {
+                    const friends = userData?.following || [];
+                    excludeIds = [currentUser.uid, ...friends];
+                }
+            }
+
+            const activeCursor = isNextPage ? cursor : undefined;
+
+            const { data, nextCursor } = await reviewService.getPaginatedSeasonReviews(
+                numericId,
+                numericSeason,
+                10,
+                activeCursor as any,
+                includeIds,
+                excludeIds
+            );
+
+            if (isNextPage) {
+                setReviews(prev => [...prev, ...data]);
+            } else {
+                setReviews(data);
+            }
+
+            setCursor(nextCursor);
+            setHasMore(!!nextCursor);
+
+        } catch (error) {
+            console.error("Error fetching reviews:", error);
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
     };
 
-    if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#FFCC00" />
+    const renderHeader = () => (
+        <View style={styles.header}>
+            <Pressable onPress={() => { triggerSelection(); router.back(); }} style={styles.backBtn}>
+                <ArrowLeft color="#FFF" size={28} />
+            </Pressable>
+
+            <View style={styles.headerContent}>
+                <View style={styles.titleGroup}>
+                    <Text style={styles.headerTitle}>Reviews</Text>
+                    {details?.name && (
+                        <Text style={styles.headerSubtitle} numberOfLines={1}>
+                            {details.name} {seasonNumber && `• S${seasonNumber}`}
+                        </Text>
+                    )}
+                </View>
             </View>
-        );
-    }
+        </View>
+    );
+
+    const renderTabs = () => (
+        <View style={styles.segmentContainer}>
+            {['public', 'friends', 'you'].map((key) => (
+                <Pressable
+                    key={key}
+                    style={[styles.segmentBtn, filter === key && styles.segmentBtnActive]}
+                    onPress={() => changeFilter(key as any)}
+                >
+                    <Text style={[styles.segmentText, filter === key && styles.segmentTextActive]}>
+                        {key.toUpperCase()}
+                    </Text>
+                </Pressable>
+            ))}
+        </View>
+    );
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Header */}
-            {/* Header */}
-            <View style={styles.header}>
-                <Pressable onPress={() => { triggerSelection(); router.back(); }} style={styles.backBtn}>
-                    <ArrowLeft color="#FFF" size={28} />
-                </Pressable>
+            {renderHeader()}
+            {renderTabs()}
 
-                <View style={styles.headerContent}>
-                    <View style={styles.titleGroup}>
-                        <Text style={styles.headerTitle}>Reviews</Text>
-                        {details?.name && (
-                            <Text style={styles.headerSubtitle} numberOfLines={1}>
-                                {details.name} {seasonNumber && `• S${seasonNumber}`}
-                            </Text>
-                        )}
-                    </View>
-
-                    {/* Absolute Center Logo */}
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#FFCC00" />
                 </View>
-            </View>
-
-            {/* SUB-TABS (3 Sections) */}
-            <View style={styles.segmentContainer}>
-                <Pressable
-                    style={[styles.segmentBtn, filter === 'public' && styles.segmentBtnActive]}
-                    onPress={() => changeFilter('public')}
-                >
-                    <Text style={[styles.segmentText, filter === 'public' && styles.segmentTextActive]}>PUBLIC</Text>
-                </Pressable>
-                <Pressable
-                    style={[styles.segmentBtn, filter === 'friends' && styles.segmentBtnActive]}
-                    onPress={() => changeFilter('friends')}
-                >
-                    <Text style={[styles.segmentText, filter === 'friends' && styles.segmentTextActive]}>FRIENDS</Text>
-                </Pressable>
-                <Pressable
-                    style={[styles.segmentBtn, filter === 'you' && styles.segmentBtnActive]}
-                    onPress={() => changeFilter('you')}
-                >
-                    <Text style={[styles.segmentText, filter === 'you' && styles.segmentTextActive]}>YOU</Text>
-                </Pressable>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-                {displayedReviews.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <MessageCircle size={60} color="#222" />
-                        <Text style={styles.emptyText}>No reviews found in this section.</Text>
-                    </View>
-                ) : (
-                    displayedReviews.map((review: any) => (
+            ) : (
+                <FlatList
+                    data={reviews}
+                    keyExtractor={(item: any) => item.id}
+                    renderItem={({ item }: { item: any }) => (
                         <ReviewItem
-                            key={review.id}
-                            review={review}
+                            review={item}
                             renderStars={(rating, size) => {
-                                // Inline helper since ReviewItem expects it
                                 const stars = [];
                                 for (let i = 1; i <= 5; i++) {
                                     const isFull = rating >= i;
@@ -246,11 +196,24 @@ export default function SeriesReviewsListingScreen() {
                                 }
                                 return <View style={{ flexDirection: 'row', gap: 2 }}>{stars}</View>;
                             }}
-                            isMe={review.userId === currentUser?.uid}
+                            isMe={item.userId === currentUser?.uid}
                         />
-                    ))
-                )}
-            </ScrollView>
+                    )}
+                    contentContainerStyle={styles.list}
+                    onEndReached={() => loadReviews(true, filter)}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={
+                        loadingMore ? <ActivityIndicator color="#FFCC00" style={{ marginVertical: 20 }} /> : null
+                    }
+                    ListEmptyComponent={
+                        <View style={styles.emptyState}>
+                            <MessageCircle size={60} color="#222" />
+                            <Text style={styles.emptyText}>No reviews found in this section.</Text>
+                        </View>
+                    }
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
         </View>
     );
 }
@@ -265,11 +228,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#000',
         justifyContent: 'center',
         alignItems: 'center'
-    },
-    loadingText: {
-        color: '#AAA',
-        marginTop: 15,
-        fontSize: 14
     },
     header: {
         flexDirection: 'row',
@@ -291,7 +249,6 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        position: 'relative',
         height: '100%',
     },
     titleGroup: {
@@ -299,7 +256,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'baseline',
         gap: 8,
-        zIndex: 5,
     },
     headerTitle: {
         color: '#FFF',
@@ -342,9 +298,6 @@ const styles = StyleSheet.create({
     list: {
         padding: 20,
         paddingBottom: 100
-    },
-    iconBtn: {
-        padding: 5
     },
     emptyState: {
         alignItems: 'center',

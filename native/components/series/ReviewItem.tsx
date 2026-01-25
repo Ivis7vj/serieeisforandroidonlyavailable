@@ -12,37 +12,45 @@ interface ReviewItemProps {
     review: any;
     renderStars: (rating: number, size: number) => React.ReactNode;
     isMe?: boolean;
+    onPress?: () => void;
 }
 
-const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe }) => {
+const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPress }) => {
     const router = useRouter();
     const { userData, currentUser } = useAuth();
     const [photoURL, setPhotoURL] = useState<string | null>(review.photoURL || null);
     const [reportModalVisible, setReportModalVisible] = useState(false);
 
     useEffect(() => {
+        // ... (UserData fetch logic same)
         const fetchUserData = async () => {
             if (!review.userId) return;
             try {
                 const userDoc = await getDoc(doc(db, 'users', review.userId));
                 if (userDoc.exists()) {
                     const data = userDoc.data();
-                    if (data.photoURL) {
-                        setPhotoURL(data.photoURL);
-                    }
+                    if (data.photoURL) setPhotoURL(data.photoURL);
                 }
             } catch (error) {
-                console.error("Error fetching user data for review:", error);
+                console.error("Error fetching user data:", error);
             }
         };
-
         fetchUserData();
     }, [review.userId]);
 
     const hasText = review.review && review.review.trim().length > 0;
     const ratingVal = review.rating ? parseFloat(review.rating.toString()) : 0;
 
+    // Resolve Poster: prefer review.poster_path, fallback to known fields
+    const posterUri = review.poster_path || review.seasonPoster || review.posterPath;
+    const resolvedPoster = posterUri ? `https://image.tmdb.org/t/p/w92${posterUri}` : null;
+
     const handlePress = () => {
+        if (onPress) {
+            onPress();
+            return;
+        }
+
         if (isMe) {
             router.push({
                 pathname: '/review',
@@ -60,6 +68,10 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe }) =>
             router.push(`/(tabs)/public-profile/${review.userId}` as any);
         }
     };
+
+    const seasonInfo = review.seasonNumber
+        ? `Season ${review.seasonNumber}${review.episodeNumber ? ` • Ep ${review.episodeNumber}` : ''}`
+        : '';
 
     return (
         <View style={styles.container}>
@@ -79,7 +91,18 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe }) =>
 
                 {/* Center: Content */}
                 <View style={styles.contentContainer}>
-                    {/* Header: Name + Stars (if text exists) */}
+
+                    {/* SERIES INFO HEADER */}
+                    <View style={styles.seriesHeader}>
+                        {(review.seriesName || review.name) && (
+                            <Text style={styles.seriesTitle} numberOfLines={1}>
+                                {(review.seriesName || review.name || '').replace(/[\(:\-]?\s*(Season|Episode|S|Ep\.?)\s*\d+.*$/i, '').trim()}
+                                <Text style={styles.seasonInfoText}>  {seasonInfo}</Text>
+                            </Text>
+                        )}
+                    </View>
+
+                    {/* Username & Stars */}
                     <View style={styles.headerRow}>
                         <Text style={styles.username}>{review.userName}</Text>
                         {hasText && (
@@ -89,39 +112,43 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe }) =>
                         )}
                     </View>
 
-                    {/* Body: Text OR Large Stars (if no text) */}
-                    {hasText ? (
-                        <Text style={styles.reviewText} numberOfLines={3}>
-                            {review.review}
-                        </Text>
-                    ) : (
-                        <View style={{ marginTop: 4 }}>
-                            {renderStars(ratingVal, 14)}
+                    {/* Body: Text Only (Poster Removed) */}
+                    <View style={styles.bodyRow}>
+                        <View style={{ flex: 1 }}>
+                            {hasText ? (
+                                <Text style={styles.reviewText} numberOfLines={8}>
+                                    {review.review}
+                                </Text>
+                            ) : (
+                                <View style={{ marginTop: 4 }}>
+                                    {renderStars(ratingVal, 14)}
+                                </View>
+                            )}
+
+                            {/* Bottom Indicator */}
+                            <View style={{ marginTop: 8 }}>
+                                <Text style={{ color: '#666', fontSize: 11, fontWeight: '700' }}>
+                                    {review.isEpisode
+                                        ? `EPISODE ${review.episodeNumber}`
+                                        : `SEASON ${review.seasonNumber}`
+                                    }
+                                </Text>
+                            </View>
                         </View>
-                    )}
+                    </View>
                 </View>
 
-                {/* Right: Indicator & Report Button (Top corner) */}
-                <View style={styles.rightSide}>
-                    {/* Report Button - Top corner */}
-                    {!isMe && (
+                {/* Right: Report Button (Top corner) */}
+                {!isMe && (
+                    <View style={styles.rightSide}>
                         <TouchableOpacity
                             style={styles.reportBtn}
                             onPress={() => setReportModalVisible(true)}
                         >
                             <AlertTriangle size={15} color="#cc0000" strokeWidth={3} />
                         </TouchableOpacity>
-                    )}
-
-                    {/* Indicator Badge (Bottom or aligned) */}
-                    <View style={styles.indicatorContainer}>
-                        <View style={styles.epBadge}>
-                            <Text style={styles.epText}>
-                                {review.isEpisode ? `EP ${review.episodeNumber}` : 'SEASON'}
-                            </Text>
-                        </View>
                     </View>
-                </View>
+                )}
             </TouchableOpacity>
 
             <ReportReviewModals
@@ -132,7 +159,7 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe }) =>
                     user_id: review.userId,
                     series_name: review.seriesName || review.name,
                     season_number: review.seasonNumber,
-                    episode_number: review.episodeNumber, // Added episode number to payload
+                    episode_number: review.episodeNumber,
                     review_text: review.review ?? ''
                 }}
                 reporterData={{
@@ -157,25 +184,49 @@ const styles = StyleSheet.create({
         paddingHorizontal: 0,
     },
     avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: '#222',
-        marginRight: 12,
+        marginRight: 10,
+        marginTop: 4,
     },
     contentContainer: {
         flex: 1,
         marginRight: 10,
     },
+    seriesHeader: {
+        marginBottom: 4,
+    },
+    seriesTitle: {
+        color: '#FFF',
+        fontSize: 15,
+        fontWeight: '900',
+    },
+    seasonInfoText: {
+        color: '#AAA',
+        fontWeight: 'bold',
+        fontSize: 12,
+    },
     headerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 4,
+        marginBottom: 6,
     },
     username: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: '700',
+        color: '#888',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    bodyRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    smallPoster: {
+        width: 40,
+        height: 60,
+        borderRadius: 4,
+        backgroundColor: '#222'
     },
     reviewText: {
         color: '#CCC',
@@ -184,33 +235,11 @@ const styles = StyleSheet.create({
         fontWeight: '400',
     },
     rightSide: {
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        height: '100%',
-        minHeight: 45,
+        marginLeft: 'auto',
     },
     reportBtn: {
         padding: 4,
-        marginTop: -4,
-        marginRight: -4,
     },
-    indicatorContainer: {
-        marginTop: 'auto',
-    },
-    epBadge: {
-        backgroundColor: '#1a1a1a',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: '#222'
-    },
-    epText: {
-        color: '#888',
-        fontSize: 10,
-        fontWeight: 'bold',
-        textTransform: 'uppercase'
-    }
 });
 
 export default ReviewItem;

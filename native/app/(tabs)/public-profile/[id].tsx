@@ -51,7 +51,7 @@ const PosterGridItem = ({ item, onPress, showBadges = false, userPosters }: Post
     const seriesId = String(item.seriesId || item.tmdbId || item.tmdb_id || item.id);
 
     const resolvedUrl = useMemo(() => {
-        return getResolvedPosterUrl(seriesId, rawPoster, userPosters, 'w342', item.seasonNumber);
+        return getResolvedPosterUrl(seriesId, rawPoster, userPosters, 'w342', item.seasonNumber, true, true);
     }, [seriesId, rawPoster, userPosters, item.seasonNumber]);
 
     return (

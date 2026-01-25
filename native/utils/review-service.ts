@@ -263,7 +263,8 @@ export const updateSeasonReview = async (
     photoURL: string,
     seriesName: string,
     posterPath: string,
-    reviewId: string
+    reviewId: string,
+    createdAt?: string
 ) => {
     try {
         const payload: any = {
@@ -275,6 +276,10 @@ export const updateSeasonReview = async (
             poster_path: posterPath,
             updated_at: new Date().toISOString()
         };
+
+        if (createdAt) {
+            payload.created_at = createdAt;
+        }
 
         const { error } = await supabase
             .from('season_reviews')
@@ -301,7 +306,8 @@ export const updateEpisodeReview = async (
     photoURL: string,
     seriesName: string,
     posterPath: string,
-    reviewId: string
+    reviewId: string,
+    createdAt?: string
 ) => {
     try {
         const payload: any = {
@@ -313,6 +319,10 @@ export const updateEpisodeReview = async (
             poster_path: posterPath,
             updated_at: new Date().toISOString()
         };
+
+        if (createdAt) {
+            payload.created_at = createdAt;
+        }
 
         const { error } = await supabase
             .from('episode_reviews')
@@ -414,5 +424,100 @@ export const deleteSeasonReview = async (reviewId: string) => {
     } catch (error) {
         console.error('[ReviewService] Delete Season Review Error:', error);
         return { success: false, error };
+    }
+};
+
+export const getPaginatedSeasonReviews = async (
+    tmdbId: number,
+    seasonNumber: number,
+    limit: number = 10,
+    cursor?: string | null,
+    userIds?: string[],
+    excludeUserIds?: string[]
+) => {
+    try {
+        let seasonQuery = supabase
+            .from('season_reviews')
+            .select('*')
+            .eq('tmdb_id', tmdbId)
+            .eq('season_number', seasonNumber)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        let episodeQuery = supabase
+            .from('episode_reviews')
+            .select('*')
+            .eq('tmdb_id', tmdbId)
+            .eq('season_number', seasonNumber)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (cursor) {
+            seasonQuery = seasonQuery.lt('created_at', cursor);
+            episodeQuery = episodeQuery.lt('created_at', cursor);
+        }
+
+        if (userIds && userIds.length > 0) {
+            // Note: Supabase 'in' takes an array for the value
+            seasonQuery = seasonQuery.in('user_id', userIds);
+            episodeQuery = episodeQuery.in('user_id', userIds);
+        }
+
+        if (excludeUserIds && excludeUserIds.length > 0) {
+            // Note: not('col', 'in', '(a,b)') syntax is specific; standard 'not.in' is safer if available, but .not() works
+            seasonQuery = seasonQuery.not('user_id', 'in', `(${excludeUserIds.join(',')})`);
+            episodeQuery = episodeQuery.not('user_id', 'in', `(${excludeUserIds.join(',')})`);
+        }
+
+        const [seasonRes, episodesRes] = await Promise.all([seasonQuery, episodeQuery]);
+
+        if (seasonRes.error) throw seasonRes.error;
+        if (episodesRes.error) throw episodesRes.error;
+
+        const allReviews = [
+            ...(seasonRes.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seasonNumber: r.season_number,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                isSeason: true,
+                source: 'supabase'
+            })),
+            ...(episodesRes.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                isEpisode: true,
+                source: 'supabase'
+            }))
+        ];
+
+        // Sort Combined
+        const sorted = allReviews.sort((a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        // Take only Limit
+        const sliced = sorted.slice(0, limit);
+        const nextCursor = sliced.length > 0 ? sliced[sliced.length - 1].createdAt : null;
+
+        return { data: sliced, nextCursor };
+    } catch (error) {
+        console.error('[ReviewService] Paginated Fetch Error:', error);
+        return { data: [], nextCursor: null };
     }
 };

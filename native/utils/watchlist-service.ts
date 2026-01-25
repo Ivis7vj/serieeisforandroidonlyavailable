@@ -1,7 +1,9 @@
 import { supabase } from './supabase';
 import { db } from './firebase';
 import { doc, getDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+
 import { logActivity } from './activity-logger';
+import { handleServiceError } from '@/utils/network-event';
 
 export const getWatchlist = async (userId: string) => {
     if (!userId) return [];
@@ -50,7 +52,7 @@ export const getWatchlist = async (userId: string) => {
 
         return [];
     } catch (error) {
-        console.error("[WatchlistService] Error:", error);
+        handleServiceError(error, 'WatchlistService');
         return [];
     }
 };
@@ -104,7 +106,7 @@ export const addToWatchlist = async (userId: string, item: any | any[]) => {
 
         return true;
     } catch (error) {
-        console.error("[WatchlistService] Add Error:", error);
+        handleServiceError(error, 'WatchlistService');
         return false;
     }
 };
@@ -135,7 +137,7 @@ export const removeFromWatchlist = async (userId: string, tmdbId: number) => {
 
         return true;
     } catch (error) {
-        console.error("[WatchlistService] Remove Error:", error);
+        handleServiceError(error, 'WatchlistService');
         return false;
     }
 };
@@ -153,7 +155,7 @@ export const removeFromWatchlistBulk = async (userId: string, tmdbIds: number[])
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error("[WatchlistService] Bulk Remove Error:", error);
+        handleServiceError(error, 'WatchlistService');
         return false;
     }
 };
@@ -172,7 +174,7 @@ export const removeSeasonFromWatchlist = async (userId: string, seriesId: number
         if (error) throw error;
         return true;
     } catch (error) {
-        console.error("[WatchlistService] Remove Season Error:", error);
+        handleServiceError(error, 'WatchlistService');
         return false;
     }
 };
@@ -193,7 +195,7 @@ export const isInWatchlist = async (userId: string, tmdbId: number) => {
     } catch (error) {
         // Fallback check in Firebase if not in Supabase? 
         // For now, let's assume Supabase is SSOT for active usage.
-        console.error("[WatchlistService] Check Status Error:", error);
+        handleServiceError(error, 'WatchlistService');
         return false;
     }
 };

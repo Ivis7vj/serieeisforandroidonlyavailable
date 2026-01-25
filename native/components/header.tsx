@@ -182,7 +182,11 @@ export function Header() {
                 )}
 
                 {/* Right Action: Spacer or Search on home page only */}
-                <View style={[styles.rightAction, isHome && { width: 80, flexDirection: 'row-reverse' }]}>
+                <View style={[
+                    styles.rightAction,
+                    isHome && { width: 80, flexDirection: 'row-reverse' },
+                    isSeriesDetails && { width: 'auto', minWidth: 80, paddingRight: 5 }
+                ]}>
                     {isHome && (
                         <>
                             <Pressable
@@ -198,6 +202,27 @@ export function Header() {
                                 <TrendingUp color="#FFCC00" size={22} />
                             </Pressable>
                         </>
+                    )}
+                    {isSeriesDetails && (
+                        <Animated.View style={{ opacity: titleOpacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
+                            <Pressable
+                                onPress={() => {
+                                    triggerSelection();
+                                    router.setParams({ openSeasonPicker: Date.now().toString() });
+                                }}
+                                style={{ paddingRight: 5, paddingLeft: 10 }}
+                            >
+                                <Text style={{
+                                    color: '#FFCC00',
+                                    fontSize: 13,
+                                    fontFamily: 'Anton-Regular',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5
+                                }}>
+                                    SEASON {params.selectedSeason || 1}
+                                </Text>
+                            </Pressable>
+                        </Animated.View>
                     )}
                     {isProfile && isOwnProfile && (
                         <Pressable onPress={() => setShowMenu(true)} style={styles.iconBtn}>

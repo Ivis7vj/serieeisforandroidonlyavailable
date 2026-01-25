@@ -61,6 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="reviews"
         options={{
+          headerShown: false,
           title: 'Reviews',
           tabBarIcon: ({ color }) => <MaterialIcons name="star" size={28} color={color} />,
         }}
