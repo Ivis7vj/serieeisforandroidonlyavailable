@@ -1,19 +1,15 @@
-# Add project specific ProGuard rules here.
-# By default, the flags in this file are appended to flags specified
-# in /usr/local/Cellar/android-sdk/24.3.3/tools/proguard/proguard-android.txt
-# You can edit the include path and order by changing the proguardFiles
-# directive in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Keep our Widget Provider and Module
+-keep class com.app.seriee.UpNextWidgetProvider { *; }
+-keep class com.app.seriee.UpNextWidgetModule { *; }
+-keep class com.app.seriee.UpNextWidgetPackage { *; }
 
-# react-native-reanimated
--keep class com.swmansion.reanimated.** { *; }
--keep class com.facebook.react.turbomodule.** { *; }
+# Keep React Native Bridge (Just in case)
+-keep class com.facebook.react.bridge.** { *; }
 
-# expo-updates
--keep class expo.modules.updates.** { *; }
--keep class expo.modules.** { *; }
--keep class com.facebook.react.** { *; }
-
-# Add any project specific keep options here:
+# Keep Glide (Standard rules, usually auto-included but good to be safe)
+-keep public class * implements com.bumptech.glide.module.GlideModule
+-keep public class * extends com.bumptech.glide.module.AppGlideModule
+-keep public enum com.bumptech.glide.load.ImageHeaderParser$** {
+  **[] $VALUES;
+  public *;
+}
