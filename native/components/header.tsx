@@ -219,7 +219,7 @@ export function Header() {
                                     textTransform: 'uppercase',
                                     letterSpacing: 0.5
                                 }}>
-                                    SEASON {params.selectedSeason || 1}
+                                    SEASON {params.selectedSeason || params.seasonNumber || 1}
                                 </Text>
                             </Pressable>
                         </Animated.View>

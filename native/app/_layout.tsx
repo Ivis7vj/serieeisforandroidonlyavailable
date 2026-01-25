@@ -150,46 +150,19 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   const isAtCorrectPlace = ((currentUser || isGuest) && !isAtLogin) || (!currentUser && !isGuest && isAtLogin) || isSigningUp;
 
   useEffect(() => {
-    const t = setTimeout(() => setLoadingTimeout(true), 4000);
+    const t = setTimeout(() => setLoadingTimeout(true), 1500); // 1.5s max for auth blocker
     return () => clearTimeout(t);
   }, [authLoading]);
 
   const loading = authLoading && !loadingTimeout;
 
   useEffect(() => {
-    if (loading || !appReady) return;
+    if (!appReady) return; // Wait only for fonts
 
-    const rootSegment = segments?.[0];
-    const isAtLogin = rootSegment === 'login';
-    const isAtTabs = rootSegment === '(tabs)';
-    const isAtRoot = !rootSegment;
-
-    // 1. Handle Redirections FIRST
-    if (!currentUser && !isGuest) {
-      if (!isAtLogin && !isSigningUp && !isAtRoot) {
-        if (isAtTabs) {
-          console.log('Root: Redirecting to login (unauthenticated)');
-          router.replace('/login');
-          return; // Don't hide splash yet
-        }
-      }
-    }
-
-    if (currentUser && !isSigningUp) {
-      if (isAtLogin || isAtRoot) {
-        console.log('Root: Redirecting to (tabs) (authenticated)');
-        router.replace('/(tabs)');
-        return; // Don't hide splash yet
-      }
-    }
-
-    // ONLY SHOW CONTENT AND HIDE SPLASH IF WE ARE WHERE WE BELONG
-    if (!isAtCorrectPlace && !loading) return;
-
-    // Aggressive Splash Hide
+    // Aggressive Splash Hide as soon as fonts are ready
     const hideSplash = async () => {
       try {
-        console.log('Root: Attempting splash hide');
+        console.log('Root: Hiding splash (App Ready)');
         await SplashScreen.hideAsync();
       } catch (e) {
         console.log('Root: Splash hide error', e);
@@ -197,7 +170,26 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     };
 
     hideSplash();
-  }, [currentUser, loading, segments, appReady, isGuest, isAtCorrectPlace]);
+
+    // Redirections happen separate from splash visibility for SPEED
+    if (loading) return;
+
+    const rootSegment = segments?.[0];
+    const isAtLogin = rootSegment === 'login';
+    const isAtTabs = rootSegment === '(tabs)';
+    const isAtRoot = !rootSegment;
+
+    // Redirection Logic
+    if (!currentUser && !isGuest && !isSigningUp) {
+      if (isAtTabs || isAtRoot) {
+        router.replace('/login');
+      }
+    } else if (currentUser && !isSigningUp) {
+      if (isAtLogin || isAtRoot) {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [currentUser, loading, segments, appReady, isGuest]);
 
   // Handle Notifications Registration
   useEffect(() => {
@@ -252,9 +244,25 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return () => subscription.remove();
   }, []);
 
-  if (loading || !appReady || !isAtCorrectPlace) {
-    // console.log(`Root: Still loading/redirecting... (Auth: ${!authLoading}, CorrectPlace: ${isAtCorrectPlace})`);
-    return null; // Keep splash visible by rendering nothing
+  // Branded Transition Screen: Prevent "Flash" of wrong screens while loading
+  // Show Logo + Spinner while fonts are loading OR while auth is validating (up to 1.5s)
+  if (!appReady || (loading && !isOffline)) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+        <StatusBar style="light" />
+        <Image
+          source={require('../assets/images/icon.png')}
+          style={{ width: 100, height: 100, marginBottom: 20 }}
+          contentFit="contain"
+        />
+        <ActivityIndicator size="small" color="#FFCC00" />
+        {/* Network blocker can still overlay here if needed */}
+        <NetworkBlocker
+          isVisible={isOffline}
+          onCancel={() => setIsOffline(false)}
+        />
+      </View>
+    );
   }
 
   return (
@@ -359,21 +367,17 @@ export default function RootLayout() {
   useEffect(() => {
     console.log('Root: Layout mounted');
 
-    // Safety timeout for fonts (10s)
+    // Safety timeout for fonts (1.5s)
     const t = setTimeout(() => {
       console.log('Root: Font timeout reached');
       setFontTimeout(true);
-    }, 10000);
+    }, 1500);
 
-    // 🛡️ COMMIT SIGNAL
-
-
-    // CRITICAL: Force hide splash screen after 12.0 seconds NO MATTER WHAT.
-    // This catches cases where fonts/auth fail to signal ready.
+    // CRITICAL: Force hide splash screen after 3.0 seconds NO MATTER WHAT.
     const splashFailsafe = setTimeout(() => {
       console.log('Root: Forcing splash hide (failsafe)');
       SplashScreen.hideAsync().catch(() => { });
-    }, 12000);
+    }, 3000);
 
     return () => {
       clearTimeout(t);

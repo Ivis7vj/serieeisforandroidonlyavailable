@@ -196,7 +196,11 @@ export default function EpisodeDetailsScreen() {
                                 <View style={styles.metaRow}>
                                     <Text style={styles.metaText}>S{seasonNum} E{episodeNum}</Text>
                                     <Text style={styles.dot}>•</Text>
-                                    <Text style={styles.metaText}>{data.air_date?.substring(0, 4)}</Text>
+                                    <View style={styles.dateBadge}>
+                                        <Text style={styles.dateBadgeText}>
+                                            {data.air_date ? new Date(data.air_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                                        </Text>
+                                    </View>
                                     {data.runtime && (
                                         <>
                                             <Text style={styles.dot}>•</Text>
@@ -398,7 +402,7 @@ export default function EpisodeDetailsScreen() {
                     email: currentUser?.email ?? ''
                 }}
             />
-        </View>
+        </View >
     );
 }
 
@@ -489,6 +493,19 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         flexWrap: 'wrap', // Fix: Allow wrapping if text is too long
         gap: 6 // Add gap for wrapped items
+    },
+    dateBadge: {
+        backgroundColor: 'rgba(255, 204, 0, 0.15)',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 204, 0, 0.3)',
+    },
+    dateBadgeText: {
+        color: '#FFCC00',
+        fontSize: 12,
+        fontWeight: '700',
     },
     metaText: {
         color: '#AAA',
