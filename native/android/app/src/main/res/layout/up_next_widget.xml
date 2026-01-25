@@ -24,7 +24,7 @@
         android:layout_marginEnd="12dp"
         android:layout_marginTop="8dp"
         android:textSize="14sp"
-        android:fontFamily="@font/anton"
+        android:textStyle="bold"
         android:textColor="#FFFFFF"
         android:elevation="4dp"
         android:shadowColor="#000000"

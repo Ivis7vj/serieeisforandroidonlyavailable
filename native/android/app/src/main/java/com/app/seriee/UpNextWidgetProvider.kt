@@ -111,20 +111,21 @@ internal fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManage
                     card.setOnClickPendingIntent(R.id.card_root, pendingDeepLink)
 
                     // Image Loading (Synchronous on Background Thread)
+                    // CRITICAL: Max IPC size is ~1MB. We must downscale aggressively.
+                    // 250x140 is roughly 140KB which is safe for 5 items (700KB total is risky if all loaded).
+                    // Safe limit: 200px width.
                     if (posterUri.isNotEmpty()) {
                         try {
                             val bitmap = Glide.with(context.applicationContext)
                                 .asBitmap()
                                 .load(posterUri)
-                                .submit(500, 281) // Fixed size optimize
+                                .submit(200, 112) // Safe small size
                                 .get()
                             card.setImageViewBitmap(R.id.poster, bitmap)
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            // Fail silently, keep default background
                         }
                     }
-
                     views.addView(R.id.upnext_flipper, card)
                 }
             }
