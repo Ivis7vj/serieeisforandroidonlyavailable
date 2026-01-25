@@ -19,16 +19,25 @@ class UpNextWidgetModule(reactContext: ReactApplicationContext) : ReactContextBa
     }
 
     @ReactMethod
-    fun updateWidgetData(data: ReadableMap) {
+    fun updateWidgetData(data: ReadableArray) {
         val sharedPref = context.getSharedPreferences("DATA", Context.MODE_PRIVATE)
         val editor = sharedPref.edit()
 
-        editor.putString("seriesName", data.getString("seriesName"))
-        editor.putString("episodeInfo", data.getString("episodeInfo"))
-        editor.putString("backdropUri", data.getString("backdropUri"))
-        if (data.hasKey("seriesId")) editor.putInt("seriesId", data.getInt("seriesId"))
-        if (data.hasKey("seasonNumber")) editor.putInt("seasonNumber", data.getInt("seasonNumber"))
-        if (data.hasKey("episodeNumber")) editor.putInt("episodeNumber", data.getInt("episodeNumber"))
+        // Store as raw JSON string for the provider to parse
+        // We can't easily serialize ReadableArray directly to JSON string without a helper, 
+        // but for simplicity we will iterate and build a manual JSON string or use a library if available.
+        // Since we want to be zero-dependency if possible, let's assuming we pass a STRINGified JSON from JS.
+        // WAIT: The plan said "Pass the entire list... to the native module". 
+        // Best practice: JS sends a JSON string using JSON.stringify().
+        
+        // Let's change the signature to accept a String to be safe and easy.
+    }
+
+    @ReactMethod
+    fun updateWidgetDataJson(jsonString: String) {
+        val sharedPref = context.getSharedPreferences("DATA", Context.MODE_PRIVATE)
+        val editor = sharedPref.edit()
+        editor.putString("widgetData", jsonString)
         editor.apply()
 
         // Trigger Widget Update

@@ -43,18 +43,18 @@ export function UpNextSection({ }: UpNextSectionProps) {
                 if (isMounted) setItems(data);
 
                 // ⚡ NATIVE WIDGET SYNC LOGIC ⚡
-                const topItem = data[0];
-                const widgetData = {
-                    seriesName: topItem ? topItem.seriesName : 'No Series Tracking',
-                    episodeInfo: topItem ? `S${topItem.nextSeasonNumber} • EP${topItem.nextEpisodeNumber}` : 'Track series to see info',
-                    backdropUri: topItem?.backdropPath ? `https://image.tmdb.org/t/p/w500${topItem.backdropPath}` : '',
-                    seriesId: topItem ? topItem.tmdbId : 0,
-                    seasonNumber: topItem ? topItem.nextSeasonNumber : 1,
-                    episodeNumber: topItem ? topItem.nextEpisodeNumber : 1
-                };
+                // Take top 5 items for the widget loop
+                const widgetItems = data.slice(0, 5).map(item => ({
+                    seriesName: item.seriesName,
+                    episodeInfo: `S${item.nextSeasonNumber} • EP${item.nextEpisodeNumber}`,
+                    backdropUri: item.backdropPath ? `https://image.tmdb.org/t/p/w500${item.backdropPath}` : '',
+                    seriesId: item.tmdbId,
+                    seasonNumber: item.nextSeasonNumber,
+                    episodeNumber: item.nextEpisodeNumber
+                }));
 
-                // Call Native Module directly
-                UpNextWidgetSync.updateWidgetData(widgetData);
+                // Call Native Module directly with list
+                UpNextWidgetSync.updateWidgetData(widgetItems);
 
             } catch (error) {
                 console.error('Failed to fetch Up Next:', error);
