@@ -30,6 +30,7 @@ export function UpNextWidget({ seriesName, episodeInfo, backdropUri }: UpNextWid
                     width: 140, // Fixed width for aspect ratio
                     backgroundColor: '#000'
                 }}
+                clickAction="OPEN_APP"
             >
                 {backdropUri ? (
                     <ImageWidget
@@ -75,6 +76,7 @@ export function UpNextWidget({ seriesName, episodeInfo, backdropUri }: UpNextWid
                     justifyContent: 'center',
                     backgroundColor: '#111', // Match card bg
                 }}
+                clickAction="OPEN_APP"
             >
                 <TextWidget
                     text={seriesName}

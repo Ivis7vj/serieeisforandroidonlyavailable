@@ -7,11 +7,12 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
     const { widgetAction } = props;
 
     if (widgetAction === 'WIDGET_UPDATE' || widgetAction === 'WIDGET_RESIZED' || widgetAction === 'WIDGET_ADDED' || widgetAction === 'WIDGET_CLICK') {
-        let data = {
+        const defaultData = {
             seriesName: 'No Series Tracking',
             episodeInfo: 'Track now',
             backdropUri: ''
         };
+        let data = defaultData;
 
         try {
             const dataJson = await AsyncStorage.getItem('@widget_data');
