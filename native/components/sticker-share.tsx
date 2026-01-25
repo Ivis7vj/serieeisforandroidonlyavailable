@@ -35,7 +35,8 @@ const StickerShare = forwardRef<ViewShot, StickerShareProps>(({
     onImageLoad
 }, ref) => {
     const username = user?.username || 'User';
-    const normalizedRating = rating > 5 ? rating / 2 : rating;
+    const safeRating = Number(rating) || 0;
+    const normalizedRating = safeRating > 5 ? safeRating / 2 : safeRating;
 
     return (
         <ViewShot ref={ref} options={{ format: 'png', quality: 1 }}>

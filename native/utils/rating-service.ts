@@ -122,10 +122,27 @@ export const getUserRatings = async (userId: string) => {
                 .order('updated_at', { ascending: false })
         ]);
 
-        return {
+        const supabaseResults = {
             episodes: episodeRatings.data || [],
             seasons: seasonRatings.data || []
         };
+
+        // FIREBASE FALLBACK
+        const q = query(
+            collection(db, 'ratings'), // assuming 'ratings' collection exists for legacy
+            where('userId', '==', userId)
+        );
+        const fbSnap = await getDocs(q);
+        fbSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.isEpisode) {
+                supabaseResults.episodes.push({ ...data, id: doc.id, source: 'firebase' });
+            } else {
+                supabaseResults.seasons.push({ ...data, id: doc.id, source: 'firebase' });
+            }
+        });
+
+        return supabaseResults;
     } catch (error) {
         console.error('[RatingService] Fetch User Ratings Error:', error);
         return { episodes: [], seasons: [] };

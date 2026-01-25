@@ -136,7 +136,7 @@ export default function FullEpisodesScreen() {
     return (
         <View style={styles.container}>
             {/* HEADER */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
+            <View style={[styles.header, { height: 60 + insets.top, paddingTop: insets.top }]}>
                 <View style={styles.headerInner}>
                     <Pressable
                         onPress={() => router.back()}
@@ -196,7 +196,6 @@ const styles = StyleSheet.create({
     header: {
         backgroundColor: '#000',
         width: '100%',
-        minHeight: 56, // Changed from height to minHeight
         zIndex: 10,
         borderBottomWidth: 1,
         borderBottomColor: '#1a1a1a',

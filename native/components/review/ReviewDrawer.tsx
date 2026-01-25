@@ -20,13 +20,13 @@ import {
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, MoreVertical, Trash2, Edit2, Share2, Flag, Share as ShareIcon } from 'lucide-react-native';
+import { X, MoreVertical, Trash2, Edit2, Share2, Flag, Share as ShareIcon, AlertTriangle } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
 import { useAuth } from '@/context/auth-context';
 import { tmdbApi } from '@/utils/tmdb';
-import { getResolvedPosterUrl } from '@/utils/poster-resolver';
+import { getResolvedPosterUrl, getResolvedPosterPath } from '@/utils/poster-resolver';
 import * as reviewService from '@/utils/review-service';
 import * as ratingService from '@/utils/rating-service';
 import * as watchedService from '@/utils/watched-service';
@@ -35,6 +35,7 @@ import * as diaryService from '@/utils/diary-service';
 import { logActivity } from '@/utils/activity-logger';
 import { triggerSelection, triggerSuccess, triggerImpact } from '@/utils/haptics';
 import RateLimitPopup from './RateLimitPopup';
+import { ReportReviewModals } from './ReportReviewModals';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -63,6 +64,7 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
 
     // Overlays
     const [showMenu, setShowMenu] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const [showDeletePopup, setShowDeletePopup] = useState(false);
     const [showSuccessDrawer, setShowSuccessDrawer] = useState(false);
     const [episodeStill, setEpisodeStill] = useState<string | null>(null);
@@ -84,7 +86,6 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
             const hasId = !!reviewData.id;
             setIsExisting(hasId);
             setExistingId(reviewData.id || null);
-            setIsEditing(!hasId);
             setIsEditing(!hasId);
             setLoading(false);
             setSubmitting(false); // FIXED: Stuck loading bug
@@ -333,12 +334,24 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
             const episodeNum = reviewData.episodeNumber;
             const type = reviewData.isEpisode ? 'episode' : 'season';
             const itemName = reviewData.name;
-            const posterPath = reviewData.poster_path;
+            const tmdbPosterPath = reviewData.poster_path;
+
+            // RESOLVE THE FINAL POSTER PATH (Sync with DB)
+            const posterPath = getResolvedPosterPath(
+                tmdbId,
+                tmdbPosterPath,
+                userData?.customPosters || {},
+                seasonNum || 0
+            ) || tmdbPosterPath;
+
             const safeSeriesName = itemName || `Series ${tmdbId}`;
 
             let success = false;
-            // ExistingId is guaranteed here because this drawer is for existing reviews only
-            if (existingId) {
+            // ExistingId exists, but check the source
+            const isLegacy = reviewData.source === 'firebase';
+
+            if (existingId && !isLegacy) {
+                // UPDATE EXISTING SUPABASE RECORD
                 if (type === 'episode' && episodeNum !== undefined) {
                     await ratingService.setEpisodeRating(userId, tmdbId, seasonNum, episodeNum, rating);
                     success = await reviewService.updateEpisodeReview(userId, tmdbId, seasonNum, episodeNum, safeReviewText, rating, userName, photoURL, safeSeriesName, posterPath, existingId);
@@ -347,7 +360,7 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
                     success = await reviewService.updateSeasonReview(userId, tmdbId, seasonNum, safeReviewText, rating, userName, photoURL, safeSeriesName, posterPath, existingId);
                 }
             } else {
-                // CREATE NEW REVIEW
+                // CREATE NEW RECORD (or MIGRATE LEGACY)
                 if (type === 'episode' && episodeNum !== undefined) {
                     await ratingService.setEpisodeRating(userId, tmdbId, seasonNum, episodeNum, rating);
                     success = await reviewService.createEpisodeReview(userId, tmdbId, seasonNum, episodeNum, safeReviewText, rating, userName, photoURL, safeSeriesName, posterPath);
@@ -434,9 +447,18 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
                         {/* HEADER */}
                         <View style={Styles.header}>
                             {isExisting && (
-                                <TouchableOpacity style={Styles.menuTrigger} onPress={() => setShowMenu(true)}>
-                                    <MoreVertical color="#FFF" size={20} strokeWidth={3} />
-                                </TouchableOpacity>
+                                currentUser?.uid === reviewData?.userId ? (
+                                    <TouchableOpacity style={Styles.menuTrigger} onPress={() => setShowMenu(true)}>
+                                        <MoreVertical color="#FFF" size={20} strokeWidth={3} />
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={Styles.menuTrigger}
+                                        onPress={() => setShowReportModal(true)}
+                                    >
+                                        <AlertTriangle color="#FF4444" size={20} strokeWidth={3} />
+                                    </TouchableOpacity>
+                                )
                             )}
 
                             {/* Logic to determine if we are viewing our own review or a friend's */}

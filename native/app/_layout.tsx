@@ -154,6 +154,17 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return () => clearTimeout(t);
   }, [authLoading]);
 
+  // 5-Second Minimum Loading Delay Logic
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
+  useEffect(() => {
+    // Enforce 5 seconds minimum "Splash" time
+    const t = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 5000);
+    return () => clearTimeout(t);
+  }, []);
+
   const loading = authLoading && !loadingTimeout;
 
   useEffect(() => {
@@ -172,7 +183,8 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     hideSplash();
 
     // Redirections happen separate from splash visibility for SPEED
-    if (loading) return;
+    // BUT we now gate this with minTimeElapsed for the visual transition
+    if (loading || !minTimeElapsed) return;
 
     const rootSegment = segments?.[0];
     const isAtLogin = rootSegment === 'login';
@@ -189,11 +201,11 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
         router.replace('/(tabs)');
       }
     }
-  }, [currentUser, loading, segments, appReady, isGuest]);
+  }, [currentUser, loading, minTimeElapsed, segments, appReady, isGuest]);
 
   // Handle Notifications Registration
   useEffect(() => {
-    if (currentUser && appReady && !loading) {
+    if (currentUser && appReady && !loading && minTimeElapsed) {
       // Check permissions BEFORE registering to decide if we show the "You get notifications" toast
       Notifications.getPermissionsAsync().then(({ status: existingStatus }) => {
         import('@/utils/notification-service').then(({ notificationService }) => {
@@ -209,7 +221,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
         });
       });
     }
-  }, [currentUser, appReady, loading]);
+  }, [currentUser, appReady, loading, minTimeElapsed]);
 
   // Handle Incoming Notifications (In-App)
   useEffect(() => {
@@ -245,8 +257,8 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   }, []);
 
   // Branded Transition Screen: Prevent "Flash" of wrong screens while loading
-  // Show Logo + Spinner while fonts are loading OR while auth is validating (up to 1.5s)
-  if (!appReady || (loading && !isOffline)) {
+  // Show Logo + Spinner while fonts are loading OR while auth is validating (up to 1.5s) OR minimum 5s hasn't passed
+  if (!appReady || ((loading || !minTimeElapsed) && !isOffline)) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
         <StatusBar style="light" />

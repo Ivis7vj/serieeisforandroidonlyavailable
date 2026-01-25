@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, limit, getDocs, writeBatch } from 'firebase/firestore';
 import * as diaryService from './diary-service';
 import * as watchlistService from './watchlist-service';
 import { getUserLikes } from './likes-service';
@@ -84,7 +84,7 @@ export const getUserProfileData = async (userId: string) => {
             postersResult
         ] = await Promise.all([
             getDoc(doc(db, 'users', userId)),
-            getUserReviews(userId), // Replaces legacy diaryService.getUserDiary
+            diaryService.getUserDiary(userId), // Strictly pull from diary_entries table
             watchlistService.getWatchlist(userId),
             getUserLikes(userId),
             ratingService.getUserRatings(userId),
@@ -129,15 +129,18 @@ export const getUserProfileData = async (userId: string) => {
             hydrateMediaItems(watchlist)
         ]);
 
-        // Map reviews to Diary compatible format (ensure 'date' property)
-        const diary = (diaryReviews || [])
-            .filter((r: any) => r.isSeason) // STRICT: Only Season Reviews in Diary
-            .map((r: any) => ({
-                ...r,
-                date: r.createdAt, // UI uses 'date' for sorting/display
-                name: r.seriesName || r.name,
-                posterPath: r.poster_path || r.posterPath
-            }));
+        // Diary entries from diaryService.getUserDiary are already normalized
+        const diary = (diaryReviews || []).map(entry => {
+            const custom = userInfo?.customPosters || {};
+            const key = `${entry.tmdbId}_${entry.seasonNumber}`;
+            const seriesKey = `${entry.tmdbId}_0`;
+            const customPath = custom[key] || custom[seriesKey] || custom[entry.tmdbId];
+
+            return {
+                ...entry,
+                posterPath: customPath ? (typeof customPath === 'string' ? customPath : customPath.path) : entry.posterPath
+            };
+        });
 
         // Helper to attach ratings
         const mergeRatings = (items: any[]) => {
@@ -170,7 +173,7 @@ export const getUserProfileData = async (userId: string) => {
         const ratedLikes = mergeRatings(likes);
         const ratedWatchlist = mergeRatings(hydratedWatchlist);
 
-        return {
+        const result = {
             userInfo,
             diary: diary, // Now seeded from Supabase Reviews
             watchlist: ratedWatchlist || [],
@@ -179,6 +182,13 @@ export const getUserProfileData = async (userId: string) => {
             activityPreview: activityPreview || [],
             userPosters: userInfo?.customPosters || {}
         };
+
+        // 🚀 BACKGROUND SYNC: Ensure DB records match latest poster choices
+        if (userId && userInfo?.customPosters) {
+            syncPosterPaths(userId, userInfo.customPosters);
+        }
+
+        return result;
 
     } catch (error) {
         console.error("Error in getUserProfileData:", error);
@@ -191,5 +201,55 @@ export const getUserProfileData = async (userId: string) => {
             activityPreview: [],
             userPosters: {}
         };
+    }
+};
+
+/**
+ * 🔄 POSTER SYNC
+ * Updates Supabase records if they are out of sync with User Customizations.
+ * This ensures "Public Profiles" show the author's chosen posters.
+ */
+export const syncPosterPaths = async (userId: string, customPosters: any) => {
+    if (!userId || !customPosters || Object.keys(customPosters).length === 0) return;
+
+    try {
+        const [reviews, diary] = await Promise.all([
+            getUserReviews(userId),
+            diaryService.getUserDiary(userId)
+        ]);
+
+        const updates: Promise<any>[] = [];
+
+        // 1. Sync Reviews (Seasons & Episodes)
+        reviews.forEach((r: any) => {
+            const key = r.isEpisode ? `${r.tmdbId}_${r.seasonNumber}_${r.episodeNumber}` : `${r.tmdbId}_${r.seasonNumber}`;
+            const seriesKey = `${r.tmdbId}_0`;
+            const custom = customPosters[key] || customPosters[seriesKey] || customPosters[r.tmdbId];
+            const latestPath = custom ? (typeof custom === 'string' ? custom : custom.path) : null;
+
+            if (latestPath && r.poster_path !== latestPath) {
+                const table = r.isEpisode ? 'episode_reviews' : 'season_reviews';
+                updates.push(supabase.from(table).update({ poster_path: latestPath }).eq('id', r.id) as any);
+            }
+        });
+
+        // 2. Sync Diary
+        diary.forEach((d: any) => {
+            const key = `${d.tmdbId}_${d.seasonNumber}`;
+            const seriesKey = `${d.tmdbId}_0`;
+            const custom = customPosters[key] || customPosters[seriesKey] || customPosters[d.tmdbId];
+            const latestPath = custom ? (typeof custom === 'string' ? custom : custom.path) : null;
+
+            if (latestPath && d.posterPath !== latestPath) {
+                updates.push(supabase.from('diary_entries').update({ poster_path: latestPath }).eq('id', d.id).then());
+            }
+        });
+
+        if (updates.length > 0) {
+            console.log(`[PosterSync] Updating ${updates.length} records for user ${userId}`);
+            await Promise.all(updates);
+        }
+    } catch (e) {
+        console.warn("[PosterSync] Failed:", e);
     }
 };

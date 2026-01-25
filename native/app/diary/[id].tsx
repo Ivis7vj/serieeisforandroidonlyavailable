@@ -147,12 +147,12 @@ export default function DiaryDetailScreen() {
                         source={{
                             uri: getResolvedPosterUrl(
                                 String(entry.tmdbId),
-                                entry.posterPath,
+                                entry.poster_path || entry.posterPath,
                                 globalPosters,
                                 'w500',
                                 entry.seasonNumber,
                                 true,
-                                true
+                                false
                             ) || undefined
                         }}
                         style={Styles.poster}

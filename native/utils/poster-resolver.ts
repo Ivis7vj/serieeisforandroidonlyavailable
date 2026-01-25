@@ -14,9 +14,15 @@ export const getResolvedPosterUrl = (
     useSeriesFallback: boolean = true,
     strictSeasonOnly: boolean = false
 ) => {
+    // 0. PRIORITY 1: Check if the provided "defaultPosterPath" (which is the record's poster_path)
+    // is actually a CUSTOM poster path from Firebase Storage
+    if (defaultPosterPath && (defaultPosterPath.startsWith('custom_posters/') || defaultPosterPath.startsWith('http'))) {
+        return getTMDBImageUrl(defaultPosterPath, size);
+    }
+
     if (!globalPosters) return getTMDBImageUrl(defaultPosterPath, size);
 
-    // 1. Check for Custom Poster for THIS specific season (seriesId_seasonNumber)
+    // 1. Check for CURRENT Custom Poster for THIS specific season (seriesId_seasonNumber)
     const seasonKey = `${tmdbId}_${seasonNumber}`;
     const seasonCustom = globalPosters[seasonKey];
     if (seasonCustom) {
@@ -25,33 +31,50 @@ export const getResolvedPosterUrl = (
     }
 
     // 2. Fallback to series-level custom (season 0) or global series key
-    // IF the user has a "Series Wide" custom poster (isTrue: 1), it takes priority over TMDB season default
     const seriesKey = `${tmdbId}_0`;
     const seriesCustom = globalPosters[seriesKey] || globalPosters[tmdbId];
     if (seriesCustom) {
         const path = typeof seriesCustom === 'string' ? seriesCustom : seriesCustom.path;
         const isTrue = typeof seriesCustom === 'string' ? false : seriesCustom.isTrue;
 
-        // If it's a "Locked/True" poster, we use it for all seasons
         if (isTrue || (!strictSeasonOnly && useSeriesFallback && (seasonNumber === 0 || !defaultPosterPath))) {
             return getTMDBImageUrl(path, size);
         }
     }
 
-    // 3. SMART DISCOVERY (Any season) - ONLY if not strict
-    if (!strictSeasonOnly && (seasonNumber === 0 || useSeriesFallback)) {
-        const prefix = `${tmdbId}_`;
-        const anySeasonKey = Object.keys(globalPosters).find(k => k.startsWith(prefix));
-        if (anySeasonKey) {
-            const val = globalPosters[anySeasonKey];
-            const path = typeof val === 'string' ? val : val.path;
-            const isTrue = typeof val === 'string' ? false : val.isTrue;
-            if (isTrue || seasonNumber === 0) {
-                return getTMDBImageUrl(path, size);
-            }
+    // 3. TMDB default (which might be a season-specific poster passed in)
+    return getTMDBImageUrl(defaultPosterPath, size);
+};
+
+export const getResolvedPosterPath = (
+    tmdbId: number | string,
+    defaultPosterPath: string | null,
+    globalPosters: any = {},
+    seasonNumber: number = 0
+) => {
+    // 0. PRIORITY 1: Stored path is already customized
+    if (defaultPosterPath && (defaultPosterPath.startsWith('custom_posters/') || defaultPosterPath.startsWith('http'))) {
+        return defaultPosterPath;
+    }
+
+    if (!globalPosters) return defaultPosterPath;
+
+    // 1. Check for CURRENT Custom Poster for THIS specific season
+    const seasonKey = `${tmdbId}_${seasonNumber}`;
+    if (globalPosters[seasonKey]) {
+        const val = globalPosters[seasonKey];
+        return typeof val === 'string' ? val : val.path;
+    }
+
+    // 2. Fallback to series-level custom
+    const seriesKey = `${tmdbId}_0`;
+    const seriesCustom = globalPosters[seriesKey] || globalPosters[tmdbId];
+    if (seriesCustom) {
+        const isTrue = typeof seriesCustom === 'string' ? false : seriesCustom.isTrue;
+        if (isTrue || seasonNumber === 0 || !defaultPosterPath) {
+            return typeof seriesCustom === 'string' ? seriesCustom : seriesCustom.path;
         }
     }
 
-    // 4. TMDB default
-    return getTMDBImageUrl(defaultPosterPath, size);
+    return defaultPosterPath;
 };

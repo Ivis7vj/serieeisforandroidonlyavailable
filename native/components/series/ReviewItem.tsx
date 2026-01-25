@@ -7,6 +7,7 @@ import { db } from '@/utils/firebase';
 import { useAuth } from '@/context/auth-context';
 import { AlertTriangle } from 'lucide-react-native';
 import { ReportReviewModals } from '../review/ReportReviewModals';
+import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 
 interface ReviewItemProps {
     review: any;
@@ -18,7 +19,7 @@ interface ReviewItemProps {
 const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPress }) => {
     const router = useRouter();
     const { userData, currentUser } = useAuth();
-    const [photoURL, setPhotoURL] = useState<string | null>(review.photoURL || null);
+    const [photoURL, setPhotoURL] = useState<string | null>(review.photoURL || review.photo_url || null);
     const [reportModalVisible, setReportModalVisible] = useState(false);
 
     useEffect(() => {
@@ -38,12 +39,24 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
         fetchUserData();
     }, [review.userId]);
 
-    const hasText = review.review && review.review.trim().length > 0;
+    const hasText = (review.review && review.review.trim().length > 0) || (review.review_text && review.review_text.trim().length > 0);
     const ratingVal = review.rating ? parseFloat(review.rating.toString()) : 0;
 
-    // Resolve Poster: prefer review.poster_path, fallback to known fields
-    const posterUri = review.poster_path || review.seasonPoster || review.posterPath;
-    const resolvedPoster = posterUri ? `https://image.tmdb.org/t/p/w92${posterUri}` : null;
+    // Resolve Poster: use the centralized resolver
+    const resolvedPoster = getResolvedPosterUrl(
+        review.tmdbId || review.tmdb_id,
+        review.poster_path || review.posterPath || review.seasonPoster,
+        userData?.customPosters || {},
+        'w92',
+        review.seasonNumber || 0
+    );
+
+    const navigateToSeries = () => {
+        router.push({
+            pathname: `/(tabs)/series/${review.tmdbId || review.tmdb_id}`,
+            params: { selectedSeason: review.seasonNumber }
+        } as any);
+    };
 
     const handlePress = () => {
         if (onPress) {
@@ -65,7 +78,8 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
                 }
             });
         } else {
-            router.push(`/(tabs)/public-profile/${review.userId}` as any);
+            // Priority: Navigate to Series/Season Page instead of profile
+            navigateToSeries();
         }
     };
 
@@ -95,10 +109,12 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
                     {/* SERIES INFO HEADER */}
                     <View style={styles.seriesHeader}>
                         {(review.seriesName || review.name) && (
-                            <Text style={styles.seriesTitle} numberOfLines={1}>
-                                {(review.seriesName || review.name || '').replace(/[\(:\-]?\s*(Season|Episode|S|Ep\.?)\s*\d+.*$/i, '').trim()}
-                                <Text style={styles.seasonInfoText}>  {seasonInfo}</Text>
-                            </Text>
+                            <TouchableOpacity onPress={(e) => { e.stopPropagation(); navigateToSeries(); }}>
+                                <Text style={styles.seriesTitle} numberOfLines={1}>
+                                    {(review.seriesName || review.name || '').replace(/[\(:\-]?\s*(Season|Episode|S|Ep\.?)\s*\d+.*$/i, '').trim()}
+                                    <Text style={styles.seasonInfoText}>  {seasonInfo}</Text>
+                                </Text>
+                            </TouchableOpacity>
                         )}
                     </View>
 
@@ -117,7 +133,7 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
                         <View style={{ flex: 1 }}>
                             {hasText ? (
                                 <Text style={styles.reviewText} numberOfLines={8}>
-                                    {review.review}
+                                    {review.review || review.review_text}
                                 </Text>
                             ) : (
                                 <View style={{ marginTop: 4 }}>

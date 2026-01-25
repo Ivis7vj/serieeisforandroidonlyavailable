@@ -140,7 +140,10 @@ export function FriendReviewDrawer({ visible, onClose, activity }: FriendReviewD
                                 closeDrawer();
                                 // We use setTimeout to ensure the drawer close animation doesn't jitter with navigation
                                 setTimeout(() => {
-                                    router.push(`/(tabs)/series/${activity.tmdb_id}` as any);
+                                    router.push({
+                                        pathname: `/(tabs)/series/${activity.tmdb_id}`,
+                                        params: { selectedSeason: activity.season_number }
+                                    } as any);
                                 }, 300);
                             }}
                         >

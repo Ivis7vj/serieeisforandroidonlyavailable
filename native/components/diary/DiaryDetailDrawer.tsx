@@ -2,12 +2,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, Dimensions, TextInput, Pressable, Platform, Alert, ScrollView, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
-import { X, MoreVertical, Trash2, Edit2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save } from 'lucide-react-native';
+import { X, MoreVertical, Trash2, Edit2, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Save, AlertTriangle } from 'lucide-react-native';
+import { ReportReviewModals } from '../review/ReportReviewModals';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { updateEpisodeReview, updateSeasonReview, deleteEpisodeReview, deleteSeasonReview } from '@/utils/review-service';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
+import { useAuth } from '@/context/auth-context';
+import * as diaryService from '@/utils/diary-service';
+import { useRouter } from 'expo-router';
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,10 +25,13 @@ interface DiaryDetailDrawerProps {
 }
 
 export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, onDelete, userPosters }: DiaryDetailDrawerProps) {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { currentUser, userData } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
 
     // Edit State
     const [reviewText, setReviewText] = useState('');
@@ -54,7 +61,7 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
         if (!entry) return null;
         return getResolvedPosterUrl(
             String(entry.tmdbId),
-            entry.posterPath || entry.poster_path, // Handle inconsistencies
+            entry.poster_path || entry.posterPath, // Priority to record's stored path
             userPosters,
             'w342', // size
             entry.seasonNumber
@@ -111,6 +118,17 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                     entry.id,
                     date.toISOString() // Update Date
                 );
+
+                // SYNC WITH DIARY TABLE (Seasons Only as requested)
+                if (!isEpisode) {
+                    await diaryService.createDiaryEntry(
+                        entry.userId,
+                        { id: entry.tmdbId, name: entry.seriesName || entry.name, poster_path: entry.poster_path },
+                        entry.seasonNumber,
+                        { rating, review: reviewText, poster_path: entry.poster_path },
+                        date.toISOString()
+                    );
+                }
             }
 
             if (success) {
@@ -152,6 +170,8 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                             res = await deleteEpisodeReview(entry.id);
                         } else {
                             res = await deleteSeasonReview(entry.id);
+                            // Also delete from diary table
+                            await diaryService.deleteSeasonDiaryEntry(entry.userId, entry.tmdbId, entry.seasonNumber);
                         }
 
                         setIsLoading(false);
@@ -257,24 +277,33 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                             </TouchableOpacity>
 
                             {!isEditing && (
-                                <View style={{ position: 'relative' }}>
-                                    <TouchableOpacity style={styles.iconBtn} onPress={() => setShowMenu(!showMenu)}>
-                                        <MoreVertical color="#888" size={24} />
+                                currentUser?.uid === entry?.userId ? (
+                                    <View style={{ position: 'relative' }}>
+                                        <TouchableOpacity style={styles.iconBtn} onPress={() => setShowMenu(!showMenu)}>
+                                            <MoreVertical color="#888" size={24} />
+                                        </TouchableOpacity>
+                                        {showMenu && (
+                                            <View style={styles.menuDropdown}>
+                                                <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); setIsEditing(true); }}>
+                                                    <Edit2 size={16} color="#FFF" />
+                                                    <Text style={styles.menuText}>Edit Review</Text>
+                                                </TouchableOpacity>
+                                                <View style={styles.divider} />
+                                                <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); handleDelete(); }}>
+                                                    <Trash2 size={16} color="#ff4444" />
+                                                    <Text style={[styles.menuText, { color: '#ff4444' }]}>Delete</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
+                                    </View>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={styles.iconBtn}
+                                        onPress={() => setShowReportModal(true)}
+                                    >
+                                        <AlertTriangle color="#FF4444" size={24} />
                                     </TouchableOpacity>
-                                    {showMenu && (
-                                        <View style={styles.menuDropdown}>
-                                            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); setIsEditing(true); }}>
-                                                <Edit2 size={16} color="#FFF" />
-                                                <Text style={styles.menuText}>Edit Review</Text>
-                                            </TouchableOpacity>
-                                            <View style={styles.divider} />
-                                            <TouchableOpacity style={styles.menuItem} onPress={() => { setShowMenu(false); handleDelete(); }}>
-                                                <Trash2 size={16} color="#ff4444" />
-                                                <Text style={[styles.menuText, { color: '#ff4444' }]}>Delete</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
-                                </View>
+                                )
                             )}
                             {isEditing && (
                                 <TouchableOpacity style={styles.iconBtn} onPress={() => setIsEditing(false)}>
@@ -295,13 +324,29 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
 
                             {/* HEADER: Poster & Title */}
                             <View style={styles.header}>
-                                <Image
-                                    source={{ uri: resolvedPoster || undefined }}
-                                    style={styles.poster}
-                                    contentFit="cover"
-                                />
+                                <TouchableOpacity onPress={() => {
+                                    onClose();
+                                    router.push({
+                                        pathname: `/(tabs)/series/${entry.tmdbId}`,
+                                        params: { selectedSeason: entry.seasonNumber }
+                                    } as any);
+                                }}>
+                                    <Image
+                                        source={{ uri: resolvedPoster || undefined }}
+                                        style={styles.poster}
+                                        contentFit="cover"
+                                    />
+                                </TouchableOpacity>
                                 <View style={styles.headerInfo}>
-                                    <Text style={styles.seriesName}>{entry.seriesName || entry.name}</Text>
+                                    <TouchableOpacity onPress={() => {
+                                        onClose();
+                                        router.push({
+                                            pathname: `/(tabs)/series/${entry.tmdbId}`,
+                                            params: { selectedSeason: entry.seasonNumber }
+                                        } as any);
+                                    }}>
+                                        <Text style={styles.seriesName}>{entry.seriesName || entry.name}</Text>
+                                    </TouchableOpacity>
                                     {entry.seasonNumber && (
                                         <View style={styles.seasonTag}>
                                             <Text style={styles.seasonText}>SEASON {entry.seasonNumber}</Text>
@@ -388,10 +433,27 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                                 </TouchableOpacity>
                             </View>
                         )}
+
+                        <ReportReviewModals
+                            visible={showReportModal}
+                            onClose={() => setShowReportModal(false)}
+                            activity={{
+                                user_name: entry?.userName || 'User',
+                                user_id: entry?.userId || '',
+                                series_name: entry?.seriesName || entry?.name || '',
+                                season_number: entry?.seasonNumber,
+                                episode_number: entry?.episodeNumber,
+                                review_text: entry?.review
+                            }}
+                            reporterData={{
+                                username: userData?.username || '',
+                                email: currentUser?.email || ''
+                            }}
+                        />
                     </KeyboardAvoidingView>
                 </View>
-            </View>
-        </Modal>
+            </View >
+        </Modal >
     );
 }
 

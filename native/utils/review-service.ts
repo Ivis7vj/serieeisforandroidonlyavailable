@@ -77,7 +77,7 @@ export const getUserReviews = async (userId: string) => {
                 id: r.id,
                 userId: r.user_id,
                 tmdbId: r.tmdb_id,
-                seriesId: r.series_id, // Add Series ID
+                seriesId: r.series_id,
                 seasonNumber: r.season_number,
                 episodeNumber: r.episode_number,
                 review: r.review_text,
@@ -104,7 +104,25 @@ export const getUserReviews = async (userId: string) => {
             }))
         ];
 
-        return supabaseReviews.sort((a, b) =>
+        // ADD FIREBASE FALLBACK
+        const q = query(
+            collection(db, 'reviews'),
+            where('userId', '==', userId)
+        );
+        const fbSnap = await getDocs(q);
+        const firebaseReviews = fbSnap.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: doc.id,
+                source: 'firebase',
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString()
+            };
+        });
+
+        const allReviews = [...supabaseReviews, ...firebaseReviews];
+
+        return allReviews.sort((a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
     } catch (error) {
@@ -128,7 +146,7 @@ export const getSeriesReviews = async (tmdbId: number) => {
                 .order('created_at', { ascending: false })
         ]);
 
-        const allReviews = [
+        const supabaseReviews = [
             ...(episodeReviews.data || []).map(r => ({
                 ...r,
                 id: r.id,
@@ -141,7 +159,8 @@ export const getSeriesReviews = async (tmdbId: number) => {
                 createdAt: r.created_at,
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
-                isEpisode: true
+                isEpisode: true,
+                source: 'supabase'
             })),
             ...(seasonReviews.data || []).map(r => ({
                 ...r,
@@ -154,11 +173,29 @@ export const getSeriesReviews = async (tmdbId: number) => {
                 createdAt: r.created_at,
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
-                isSeason: true
+                isSeason: true,
+                source: 'supabase'
             }))
         ];
 
-        return allReviews;
+        // ADD FIREBASE FALLBACK
+        const q = query(
+            collection(db, 'reviews'),
+            where('tmdbId', '==', tmdbId)
+        );
+        const fbSnap = await getDocs(q);
+        const firebaseReviews = fbSnap.docs.map(doc => ({
+            ...doc.data(),
+            id: doc.id,
+            source: 'firebase'
+        }));
+
+        const allReviews = [...supabaseReviews, ...firebaseReviews];
+
+        return allReviews.sort((a: any, b: any) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
     } catch (error) {
         console.error('[ReviewService] Get Series Reviews Error:', error);
         return [];

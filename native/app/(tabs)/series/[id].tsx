@@ -99,7 +99,10 @@ export default function SeriesDetailsScreen() {
     const tabScrollRef = useRef<ScrollView>(null);
 
     // UI STATE
-    const [selectedSeason, setSelectedSeason] = useState(seasonNumber ? parseInt(seasonNumber as string) : 1);
+    const [selectedSeason, setSelectedSeason] = useState(() => {
+        const sn = params.selectedSeason || params.seasonNumber;
+        return sn ? parseInt(sn as string) : 1;
+    });
     const [isSeasonPopupOpen, setIsSeasonPopupOpen] = useState(false);
     const [showRatingPopup, setShowRatingPopup] = useState(false);
     const [actionLoading, setActionLoading] = useState<{ watchlist: boolean; watched: boolean }>({ watchlist: false, watched: false });
@@ -136,7 +139,8 @@ export default function SeriesDetailsScreen() {
         setEpisodes([]);
         setAllSeasonCredits([]);
         // Reset season selection if id changes
-        setSelectedSeason(seasonNumber ? parseInt(seasonNumber as string) : 1);
+        const sn = params.selectedSeason || params.seasonNumber;
+        setSelectedSeason(sn ? parseInt(sn as string) : 1);
     }
 
     const scrollRef = useRef<ScrollView>(null);
@@ -145,10 +149,13 @@ export default function SeriesDetailsScreen() {
 
     // SYNC HEADER TITLE PARAMS
     useEffect(() => {
-        if (details?.name) {
+        const title = details?.translations?.translations?.find((t: any) => t.iso_639_1 === 'en')?.data?.name || details?.name;
+        if (title && paramsRef.current.scTitle !== title) {
             // Small delay to ensure route stability on Android
             const timer = setTimeout(() => {
-                router.setParams({ scTitle: details.translations?.translations?.find((t: any) => t.iso_639_1 === 'en')?.data?.name || details.name });
+                if (paramsRef.current.scTitle !== title) {
+                    router.setParams({ scTitle: title });
+                }
             }, 100);
             return () => clearTimeout(timer);
         }
@@ -162,10 +169,14 @@ export default function SeriesDetailsScreen() {
 
             if (value > threshold && !showHeaderTitle) {
                 setShowHeaderTitle(true);
-                router.setParams({ showHeaderTitle: 'true' });
+                if (paramsRef.current.showHeaderTitle !== 'true') {
+                    router.setParams({ showHeaderTitle: 'true' });
+                }
             } else if (value <= threshold && showHeaderTitle) {
                 setShowHeaderTitle(false);
-                router.setParams({ showHeaderTitle: 'false' });
+                if (paramsRef.current.showHeaderTitle !== 'false') {
+                    router.setParams({ showHeaderTitle: 'false' });
+                }
             }
         });
         return () => scrollY.removeListener(listener);
@@ -227,18 +238,12 @@ export default function SeriesDetailsScreen() {
             const sn = parseInt(snParam as string);
             if (!isNaN(sn) && sn !== selectedSeason) {
                 console.log("[SeriesDetails] Syncing season from params:", sn);
-                setSelectedSeason(sn);
-                handleSeasonChange(sn);
+                handleSeasonChange(sn, true);
             }
         }
     }, [params.selectedSeason, params.seasonNumber]);
 
-    // SYNC SELECTED SEASON TO PARAMS FOR HEADER
-    useEffect(() => {
-        if (id) {
-            router.setParams({ selectedSeason: selectedSeason.toString() });
-        }
-    }, [selectedSeason, id]);
+
 
     // LISTEN FOR HEADER TRIGGER TO OPEN SEASON PICKER
     useEffect(() => {
@@ -534,7 +539,7 @@ export default function SeriesDetailsScreen() {
     };
 
     // ACTIONS
-    const handleSeasonChange = (seasonNum: number) => {
+    const handleSeasonChange = (seasonNum: number, omitSetParams: boolean = false) => {
         if (seasonNum === selectedSeason) {
             setIsSeasonPopupOpen(false);
             return;
@@ -549,6 +554,11 @@ export default function SeriesDetailsScreen() {
         setSelectedSeason(seasonNum);
         setIsSeasonPopupOpen(false);
         triggerSelection();
+
+        // Update params explicitly if not initiated from params
+        if (!omitSetParams && id) {
+            router.setParams({ selectedSeason: seasonNum.toString() });
+        }
     };
 
     const handleTabPress = (tab: string, index: number) => {
@@ -1557,7 +1567,10 @@ export default function SeriesDetailsScreen() {
                             <CastCrewTab
                                 seasonCredits={allSeasonCredits}
                                 onViewMore={() => {
-                                    router.push(`/series-seasons/${details.id}` as any);
+                                    router.push({
+                                        pathname: `/series-credits/${details.id}` as any,
+                                        params: { season: selectedSeason }
+                                    });
                                 }}
                             />
                         </View>
