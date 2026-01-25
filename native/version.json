@@ -1,5 +1,5 @@
 {
-    "version": "3.0.0",
+    "version": "3.0.1",
     "mandatory": true,
-    "notes": "Introduced Month-End Diary Export, Offline Mode, and Critical Fixes."
+    "notes": "Hotfix: Solved loading issues on Cast & Crew page and added a smoother loading transition."
 }
