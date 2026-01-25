@@ -1,56 +1,64 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:padding="16dp">
+    android:orientation="horizontal"
+    android:background="#000000"
+    android:padding="0dp">
 
-    <TextView
-        android:id="@+id/widget_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="UP NEXT"
-        android:textColor="#FFCC00"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.1"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentStart="true" />
+    <!-- Landscape Poster -->
+    <ImageView
+        android:id="@+id/widget_backdrop"
+        android:layout_width="120dp"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="Show Poster" />
 
-    <TextView
-        android:id="@+id/app_name"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="SERIEE"
-        android:textColor="#666666"
-        android:textSize="10sp"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true" />
-
+    <!-- Info Container -->
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
         android:orientation="vertical"
-        android:layout_centerInParent="true">
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="#111111">
 
+        <!-- Series Name -->
         <TextView
-            android:id="@+id/episode_name"
+            android:id="@+id/widget_series_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="No Active Series"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:ellipsize="end"
+            android:text="Series Title" />
 
+        <!-- S2 • E1 -->
         <TextView
-            android:id="@+id/episode_info"
+            android:id="@+id/widget_episode_info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Track your first show"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp"
-            android:layout_marginTop="4dp" />
+            android:textColor="#9A9A9A"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:maxLines="1"
+            android:text="S1 • E1" />
+
+        <!-- Up Next Badge -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="UP NEXT"
+            android:textColor="#666666"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginTop="8dp" />
+
     </LinearLayout>
 
-</RelativeLayout>
+</LinearLayout>

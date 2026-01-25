@@ -23,7 +23,9 @@ class MainApplication : Application(), ReactApplication {
       this,
       object : DefaultReactNativeHost(this) {
         override fun getPackages(): List<ReactPackage> {
-            return PackageList(this).packages
+            val packages = PackageList(this).packages
+            packages.add(UpNextWidgetPackage())
+            return packages
         }
 
 

@@ -10,8 +10,7 @@ import { triggerSelection } from '@/utils/haptics';
 import { ChevronRight, Layout } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/utils/supabase';
-import { requestWidgetUpdate } from 'react-native-android-widget';
-import { UpNextWidget } from '../widget/UpNextWidget';
+import { UpNextWidgetSync } from '@/src/services/UpNextWidgetSync';
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -43,31 +42,19 @@ export function UpNextSection({ }: UpNextSectionProps) {
                 const data = await getUpNextData(currentUser.uid);
                 if (isMounted) setItems(data);
 
-                // ⚡ WIDGET SYNC LOGIC ⚡
+                // ⚡ NATIVE WIDGET SYNC LOGIC ⚡
                 const topItem = data[0];
                 const widgetData = {
                     seriesName: topItem ? topItem.seriesName : 'No Series Tracking',
                     episodeInfo: topItem ? `S${topItem.nextSeasonNumber} • EP${topItem.nextEpisodeNumber}` : 'Track series to see info',
-                    backdropUri: topItem?.backdropPath ? `https://image.tmdb.org/t/p/w500${topItem.backdropPath}` : ''
+                    backdropUri: topItem?.backdropPath ? `https://image.tmdb.org/t/p/w500${topItem.backdropPath}` : '',
+                    seriesId: topItem ? topItem.tmdbId : 0,
+                    seasonNumber: topItem ? topItem.nextSeasonNumber : 1,
+                    episodeNumber: topItem ? topItem.nextEpisodeNumber : 1
                 };
 
-                // 1. Save to Storage for Background Handler
-                await AsyncStorage.setItem('@widget_data', JSON.stringify(widgetData));
-
-                // 2. Force Immediate Update
-                requestWidgetUpdate({
-                    widgetName: 'UpNextWidget',
-                    renderWidget: () => (
-                        <UpNextWidget
-                            seriesName={widgetData.seriesName}
-                            episodeInfo={widgetData.episodeInfo}
-                            backdropUri={widgetData.backdropUri}
-                        />
-                    ),
-                    widgetNotFound: () => {
-                        // console.log('Widget not added to home screen yet');
-                    }
-                });
+                // Call Native Module directly
+                UpNextWidgetSync.updateWidgetData(widgetData);
 
             } catch (error) {
                 console.error('Failed to fetch Up Next:', error);
