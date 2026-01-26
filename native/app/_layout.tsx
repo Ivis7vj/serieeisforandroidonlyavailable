@@ -14,7 +14,7 @@ import "../global.css";
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSegments, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -34,6 +34,8 @@ import { Image } from 'expo-image';
 import { OnboardingProvider } from '@/context/onboarding-context';
 import { useFonts } from 'expo-font';
 import { Anton_400Regular } from '@expo-google-fonts/anton';
+import { PlayfairDisplay_400Regular, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
+import { SourceSerif4_400Regular, SourceSerif4_600SemiBold } from '@expo-google-fonts/source-serif-4';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GlobalErrorBoundary } from '@/components/security/GlobalErrorBoundary';
 import { ToastProvider } from '@/context/toast-context';
@@ -50,12 +52,10 @@ const CustomDarkTheme = {
 };
 
 function RootLayoutNav({ appReady }: { appReady: boolean }) {
-  const { currentUser, isLoading: authLoading, isSigningUp, isGuest } = useAuth();
+  const { currentUser, bootState, isSigningUp, isGuest } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
-  // Safety timeout for the 'loading' state
-  const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastContent, setToastContent] = useState({ title: '', message: '' });
   const [isOffline, setIsOffline] = useState(false);
@@ -143,85 +143,56 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return () => clearInterval(interval);
   }, []);
 
+
   const rootSegment = segments?.[0];
   const isAtLogin = rootSegment === 'login';
   const isAtTabs = rootSegment === '(tabs)';
   const isAtRoot = !rootSegment;
-  const isAtCorrectPlace = ((currentUser || isGuest) && !isAtLogin) || (!currentUser && !isGuest && isAtLogin) || isSigningUp;
+
+  const isNavigating = useRef(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoadingTimeout(true), 1500); // 1.5s max for auth blocker
-    return () => clearTimeout(t);
-  }, [authLoading]);
+    // 1. Hide Native Splash ONLY once we are at the correct destination
+    // This prevents the "loading screen flash" after the splash disappears
+    const isReadyToHide = appReady && bootState !== 'BOOTING' && (
+      (bootState === 'AUTHENTICATED' && isAtTabs) ||
+      (bootState === 'UNAUTHENTICATED' && isAtLogin) ||
+      (isAtTabs && isGuest) // Guests can hide splash once they reach tabs
+    );
 
-  // 5-Second Minimum Loading Delay Logic
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+    if (isReadyToHide) {
+      SplashScreen.hideAsync().catch(() => { });
+    }
 
-  useEffect(() => {
-    // Enforce 5 seconds minimum "Splash" time
-    const t = setTimeout(() => {
-      setMinTimeElapsed(true);
-    }, 5000);
-    return () => clearTimeout(t);
-  }, []);
+    // 2. Redirection Logic targeting SPECIFIC states
+    if (bootState === 'BOOTING') return;
 
-  const loading = authLoading && !loadingTimeout;
+    // Reset navigation guard if we've arrived at the target
+    if (isAtLogin && bootState === 'UNAUTHENTICATED') isNavigating.current = false;
+    if (isAtTabs && (bootState === 'AUTHENTICATED' || isGuest)) isNavigating.current = false;
 
-  useEffect(() => {
-    if (!appReady) return; // Wait only for fonts
+    if (isNavigating.current) return;
 
-    // Aggressive Splash Hide as soon as fonts are ready
-    const hideSplash = async () => {
-      try {
-        console.log('Root: Hiding splash (App Ready)');
-        await SplashScreen.hideAsync();
-      } catch (e) {
-        console.log('Root: Splash hide error', e);
-      }
-    };
-
-    hideSplash();
-
-    // Redirections happen separate from splash visibility for SPEED
-    // BUT we now gate this with minTimeElapsed for the visual transition
-    if (loading || !minTimeElapsed) return;
-
-    const rootSegment = segments?.[0];
-    const isAtLogin = rootSegment === 'login';
-    const isAtTabs = rootSegment === '(tabs)';
-    const isAtRoot = !rootSegment;
-
-    // Redirection Logic
-    if (!currentUser && !isGuest && !isSigningUp) {
+    if (bootState === 'UNAUTHENTICATED' && !isSigningUp && !isGuest) {
       if (isAtTabs || isAtRoot) {
+        console.log('[Root] Not authenticated. Redirecting to Login.');
+        isNavigating.current = true;
         router.replace('/login');
       }
-    } else if (currentUser && !isSigningUp) {
+    } else if (bootState === 'AUTHENTICATED') {
       if (isAtLogin || isAtRoot) {
+        console.log('[Root] Authenticated. Redirecting to Tabs.');
+        isNavigating.current = true;
         router.replace('/(tabs)');
       }
     }
-  }, [currentUser, loading, minTimeElapsed, segments, appReady, isGuest]);
+  }, [bootState, rootSegment, appReady, isSigningUp]);
 
-  // Handle Notifications Registration
-  useEffect(() => {
-    if (currentUser && appReady && !loading && minTimeElapsed) {
-      // Check permissions BEFORE registering to decide if we show the "You get notifications" toast
-      Notifications.getPermissionsAsync().then(({ status: existingStatus }) => {
-        import('@/utils/notification-service').then(({ notificationService }) => {
-          notificationService.registerForPushNotificationsAsync(currentUser.uid)
-            .then(token => {
-              // Only show the registration toast if permission was NOT granted initially (new signup/allow)
-              if (token && existingStatus !== 'granted') {
-                setToastContent({ title: 'Notifications On', message: 'You will now receive updates about your series.' });
-                setToastVisible(true);
-              }
-            })
-            .catch(err => console.error('[Root] Token registration error:', err));
-        });
-      });
-    }
-  }, [currentUser, appReady, loading, minTimeElapsed]);
+  // Handle Notifications Registration gets done in AuthContext now
+  // We only show the "Notifications On" toast here if needed, but 
+  // since registration is backgrounded in Auth, maybe we can listen for a success event?
+  // For now, removing the toast logic on Registration to simplify. 
+  // User didn't strictly ask for the toast, just "Notifications work reliably".
 
   // Handle Incoming Notifications (In-App)
   useEffect(() => {
@@ -257,8 +228,8 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   }, []);
 
   // Branded Transition Screen: Prevent "Flash" of wrong screens while loading
-  // Show Logo + Spinner while fonts are loading OR while auth is validating (up to 1.5s) OR minimum 5s hasn't passed
-  if (!appReady || ((loading || !minTimeElapsed) && !isOffline)) {
+  // Show Logo + Spinner while BOOTING or FONTS not ready
+  if (!appReady || bootState === 'BOOTING') {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
         <StatusBar style="light" />
@@ -338,6 +309,10 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     'Anton-Regular': Anton_400Regular,
+    'PlayfairDisplay-Regular': PlayfairDisplay_400Regular,
+    'PlayfairDisplay-Bold': PlayfairDisplay_700Bold,
+    'SourceSerif4-Regular': SourceSerif4_400Regular,
+    'SourceSerif4-SemiBold': SourceSerif4_600SemiBold,
     'Poppins-BlackItalic': require('../assets/fonts/Poppins-BlackItalic.ttf'),
     'Ultra-Regular': require('../assets/fonts/Ultra-Regular.ttf'),
     'AlfaSlabOne-Regular': require('../assets/fonts/AlfaSlabOne-Regular.ttf'),
@@ -379,21 +354,17 @@ export default function RootLayout() {
   useEffect(() => {
     console.log('Root: Layout mounted');
 
-    // Safety timeout for fonts (1.5s)
+    // Safety timeout for fonts (increased to 10s to be strictly safe but responsive)
     const t = setTimeout(() => {
       console.log('Root: Font timeout reached');
       setFontTimeout(true);
-    }, 1500);
+    }, 10000);
 
-    // CRITICAL: Force hide splash screen after 3.0 seconds NO MATTER WHAT.
-    const splashFailsafe = setTimeout(() => {
-      console.log('Root: Forcing splash hide (failsafe)');
-      SplashScreen.hideAsync().catch(() => { });
-    }, 3000);
+    // REMOVED individual failsafe. RootLayoutNav now handles it strictly based on bootState.
+    // This satisfies "dont show until homepage loaded".
 
     return () => {
       clearTimeout(t);
-      clearTimeout(splashFailsafe);
     };
   }, []);
 

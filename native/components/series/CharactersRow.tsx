@@ -227,6 +227,9 @@ const styles = StyleSheet.create({
     container: {
         backgroundColor: '#000',
         paddingVertical: 10,
+        borderTopWidth: 1.5,
+        borderTopColor: '#444',
+        width: '100%',
     },
     loadingBox: {
         height: 120,
@@ -237,7 +240,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
+        paddingHorizontal: 20, // Already 20
         marginBottom: 12,
     },
     headerTitle: {
@@ -259,7 +262,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     scrollContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 20, // Synced to 20
         paddingRight: 32,
         gap: 16,
     },

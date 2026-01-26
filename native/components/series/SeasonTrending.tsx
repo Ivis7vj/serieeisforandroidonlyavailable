@@ -58,7 +58,6 @@ const SeasonTrending: React.FC<SeasonTrendingProps> = ({ seriesName, seasonNumbe
 
     return (
         <View style={styles.container}>
-            <View style={styles.divider} />
             <Text style={styles.header}>Talks about Season {seasonNumber}</Text>
 
             <ScrollView
@@ -94,7 +93,6 @@ const SeasonTrending: React.FC<SeasonTrendingProps> = ({ seriesName, seasonNumbe
                                     {video.name}
                                 </Text>
                                 <View style={styles.channelRow}>
-                                    {/* Subtitle is now video type */}
                                     <Text style={styles.channelName} numberOfLines={1}>
                                         {video.type}
                                     </Text>
@@ -110,36 +108,39 @@ const SeasonTrending: React.FC<SeasonTrendingProps> = ({ seriesName, seasonNumbe
 
 const styles = StyleSheet.create({
     container: {
-        marginTop: 10,
-        marginBottom: 10,
+        paddingVertical: 10,
+        borderTopWidth: 1.5,
+        borderTopColor: '#444',
+        width: '100%',
     },
     header: {
         color: '#FFF',
         fontSize: 18,
-        fontWeight: '700', // Bold Apple TV Header
+        fontWeight: '700',
         letterSpacing: -0.5,
-        marginLeft: 16,
-        marginBottom: 12,
+        marginLeft: 20,
+        marginBottom: 10,
         opacity: 0.95
     },
     scrollContent: {
-        paddingHorizontal: 16,
-        gap: 12
+        paddingHorizontal: 20,
+        gap: 12,
+        marginBottom: 8
     },
-    // CARD
+    // ... rest of child items should use increased padding if they were using 16
     card: {
         width: Dimensions.get('window').width * 0.85,
         maxWidth: 360,
         flexDirection: 'row',
-        backgroundColor: '#1c1c1c', // Slightly lighter than pure black
+        backgroundColor: '#1c1c1c',
         borderRadius: 12,
         overflow: 'hidden',
-        height: 110, // Match card height
+        height: 110,
         alignItems: 'center',
-        marginRight: 8 // Increased spacing
+        marginRight: 8
     },
     thumbnail: {
-        width: 195, // 16:9 of 110px height (110 * 1.77)
+        width: 195,
         height: 110,
         backgroundColor: '#222'
     },
@@ -174,20 +175,20 @@ const styles = StyleSheet.create({
         fontWeight: '400',
         flex: 1
     },
-    // SKELETON
     skeletonCard: {
         width: Dimensions.get('window').width * 0.85,
         maxWidth: 360,
-        height: 110, // Match card height
+        height: 110,
         borderRadius: 12,
         backgroundColor: '#1a1a1a',
         overflow: 'hidden',
         marginRight: 10
     },
     divider: {
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-        marginTop: 20
+        height: 1.5,
+        backgroundColor: '#444',
+        marginHorizontal: 0,
+        marginVertical: 10
     }
 });
 

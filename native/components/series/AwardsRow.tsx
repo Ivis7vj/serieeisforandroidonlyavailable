@@ -240,9 +240,9 @@ const AwardsRow: React.FC<AwardsRowProps> = ({ seriesId, imdbId, tvdbId, release
 const styles = StyleSheet.create({
     container: {
         paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-        // removed global padding to allow carousels to bleed
+        borderTopWidth: 1.5,
+        borderTopColor: '#444',
+        width: '100%',
     },
     headerTitle: {
         color: '#FFF',

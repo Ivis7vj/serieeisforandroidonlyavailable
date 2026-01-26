@@ -112,28 +112,28 @@ const WatchedBy: React.FC<WatchedByProps> = ({ reviews, following, seasonNumber,
 
 const styles = StyleSheet.create({
     container: {
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
-        paddingVertical: 12, // Increased padding
-        marginBottom: 20, // Space below
-        backgroundColor: '#000'
+        borderTopWidth: 1.5,
+        borderTopColor: '#444',
+        paddingVertical: 12,
+        backgroundColor: '#000',
+        width: '100%',
     },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: 20, // Synced to 20
         marginBottom: 10
     },
     title: {
         color: '#FFF',
         fontSize: 12,
-        fontWeight: '600', // ~6px weight equivalent
+        fontWeight: '600',
         letterSpacing: 0.5,
         textTransform: 'uppercase'
     },
     list: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 20, // Synced to 20
         gap: 16
     },
     userItem: {

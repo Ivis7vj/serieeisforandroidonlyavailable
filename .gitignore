@@ -9,3 +9,4 @@ native/android/.gradle/
 *.apk
 *.log
 .DS_Store
+.env

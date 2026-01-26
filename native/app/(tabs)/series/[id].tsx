@@ -67,6 +67,7 @@ import { triggerImpact, triggerNotification, triggerSelection } from '@/utils/ha
 import ViewShot from 'react-native-view-shot';
 import Skeleton from '@/components/skeleton';
 import ReviewDrawer from '@/components/review/ReviewDrawer';
+import { NewsSection } from '@/components/series/NewsSection';
 
 const { width, height } = Dimensions.get('window');
 
@@ -95,8 +96,6 @@ export default function SeriesDetailsScreen() {
     const [allSeasonCredits, setAllSeasonCredits] = useState<any[]>([]);
 
     const [activeTab, setActiveTab] = useState('Episodes');
-    const tabScrollX = useRef(new Animated.Value(0)).current;
-    const tabScrollRef = useRef<ScrollView>(null);
 
     // UI STATE
     const [selectedSeason, setSelectedSeason] = useState(() => {
@@ -337,13 +336,6 @@ export default function SeriesDetailsScreen() {
                 // RESET TO EPISODES TAB ON BACK NAVIGATION (General rule)
                 setActiveTab('Episodes');
 
-                // FORCE SCROLL TO START (Episodes Tab)
-                if (tabScrollRef.current) {
-                    tabScrollRef.current.scrollTo({ x: 0, animated: false });
-                }
-                // FORCE RESET HEADER INDICATOR
-                tabScrollX.setValue(0);
-
                 // REFRESH DATA ON FOCUS (RELOAD REQUIREMENT)
                 if (id) {
                     // Re-sync reviews AND user status (Parallel Fetch)
@@ -473,15 +465,9 @@ export default function SeriesDetailsScreen() {
                 setSeasonDetails(data);
                 setEpisodes(data.episodes || []);
 
-                // Reset to Episodes tab (Index 0) on season change with delay to ensure scroll
+                // Reset to Episodes tab (Index 0) on season change
                 setTimeout(() => {
                     setActiveTab('Episodes');
-                    handleTabPress('Episodes', 0);
-                    // FORCE RESET SCROLL & INDICATOR
-                    if (tabScrollRef.current) {
-                        tabScrollRef.current.scrollTo({ x: 0, animated: false });
-                    }
-                    tabScrollX.setValue(0);
                 }, 100);
             } catch (error) {
                 console.error("Error loading season details:", error);
@@ -563,7 +549,6 @@ export default function SeriesDetailsScreen() {
 
     const handleTabPress = (tab: string, index: number) => {
         setActiveTab(tab);
-        tabScrollRef.current?.scrollTo({ x: index * width, animated: true });
         triggerSelection();
     };
 
@@ -1385,7 +1370,7 @@ export default function SeriesDetailsScreen() {
 
             <Animated.ScrollView
                 ref={scrollRef}
-                stickyHeaderIndices={[6]} // Index 6 is TabsHeader (0:header, 1:awards, 2:characters, 3:trending, 4:watchedby, 5:ratings, 6:tabs)
+                stickyHeaderIndices={[7]} // Index 7 is TabsHeader (0:header, 1:awards, 2:ratings, 3:char, 4:trend, 5:watchedby, 6:news, 7:tabs)
                 contentContainerStyle={{ paddingBottom: 100 }} // Restored padding for full visibility
                 showsVerticalScrollIndicator={false}
                 scrollEventThrottle={16}
@@ -1405,30 +1390,7 @@ export default function SeriesDetailsScreen() {
                     releaseYear={details.first_air_date?.split('-')[0]}
                 />
 
-                {/* 1.1 CHARACTERS (Season-wise via TVDB/TMDB) */}
-                <CharactersRow
-                    tvdbId={details.external_ids?.tvdb_id}
-                    tmdbId={details.id}
-                    allSeasonCredits={allSeasonCredits}
-                    selectedSeason={selectedSeason}
-                />
-
-                {/* 2. SEASON TRENDING (YouTube) */}
-                <SeasonTrending
-                    seriesName={details.name}
-                    seasonNumber={selectedSeason}
-                    tmdbId={details.id}
-                />
-
-                {/* 3. WATCHED BY (Friends) */}
-                <WatchedBy
-                    reviews={reviewsData}
-                    following={followingList}
-                    seasonNumber={selectedSeason}
-                    currentUserId={currentUser?.uid}
-                />
-
-                {/* 4. RATINGS SECTION */}
+                {/* 2. RATINGS SECTION (Moved here) */}
                 <View style={styles.ratingsSection}>
                     <Text style={styles.ratingsHeader}>RATINGS</Text>
                     <View style={styles.histogramContainer}>
@@ -1497,6 +1459,39 @@ export default function SeriesDetailsScreen() {
                     </View>
                 </View>
 
+                {/* 1.1 CHARACTERS (Season-wise via TVDB/TMDB) */}
+                <CharactersRow
+                    tvdbId={details.external_ids?.tvdb_id}
+                    tmdbId={details.id}
+                    allSeasonCredits={allSeasonCredits}
+                    selectedSeason={selectedSeason}
+                />
+
+                {/* 2. SEASON TRENDING (YouTube) */}
+                <SeasonTrending
+                    seriesName={details.name}
+                    seasonNumber={selectedSeason}
+                    tmdbId={details.id}
+                />
+
+                {/* 3. WATCHED BY (Friends) */}
+                <WatchedBy
+                    reviews={reviewsData}
+                    following={followingList}
+                    seasonNumber={selectedSeason}
+                    currentUserId={currentUser?.uid}
+                />
+
+                {/* 4.5 NEWS SECTION */}
+                {details && (
+                    <NewsSection
+                        seriesId={details.id}
+                        seriesName={details.name}
+                        posterPath={details.poster_path}
+                        backdrops={details.images?.backdrops?.map((img: any) => img.file_path)}
+                    />
+                )}
+
                 {/* 5. TABS STICKY HEADER */}
                 <View onLayout={(e) => { tabsY.current = e.nativeEvent.layout.y; }}>
                     <TabsHeader
@@ -1506,30 +1501,13 @@ export default function SeriesDetailsScreen() {
                             const tabs = ['Episodes', 'Reviews', 'Cast & Crew'];
                             handleTabPress(tab, tabs.indexOf(tab));
                         }}
-                        scrollX={tabScrollX}
                     />
                 </View>
 
-                {/* SWIPEABLE CONTENT AREA */}
+                {/* TAB CONTENT AREA (Reverted from swipeable to static to prevent vertical scroll lock) */}
                 <View style={{ flex: 1, backgroundColor: '#000' }}>
-                    <Animated.ScrollView
-                        ref={tabScrollRef}
-                        horizontal
-                        pagingEnabled
-                        showsHorizontalScrollIndicator={false}
-                        onScroll={Animated.event(
-                            [{ nativeEvent: { contentOffset: { x: tabScrollX } } }],
-                            { useNativeDriver: false }
-                        )}
-                        onMomentumScrollEnd={(e) => {
-                            const index = Math.round(e.nativeEvent.contentOffset.x / width);
-                            const tabs = ['Episodes', 'Reviews', 'Cast & Crew'];
-                            setActiveTab(tabs[index]);
-                        }}
-                        contentContainerStyle={{ width: width * 3 }}
-                    >
-                        {/* 1. EPISODES TAB */}
-                        <View style={{ width, minHeight: 400, overflow: 'hidden' }}>
+                    {activeTab === 'Episodes' && (
+                        <View style={{ width: '100%', minHeight: 400 }}>
                             {loading ? (
                                 <ActivityIndicator size="large" color="#FFD600" style={{ marginTop: 40 }} />
                             ) : (
@@ -1550,9 +1528,10 @@ export default function SeriesDetailsScreen() {
                                 />
                             )}
                         </View>
+                    )}
 
-                        {/* 2. REVIEWS TAB */}
-                        <View style={{ width, minHeight: 400, overflow: 'hidden' }}>
+                    {activeTab === 'Reviews' && (
+                        <View style={{ width: '100%', minHeight: 400 }}>
                             <ReviewsTab
                                 reviews={reviewsData}
                                 currentUser={currentUser}
@@ -1561,9 +1540,10 @@ export default function SeriesDetailsScreen() {
                                 seriesId={details.id}
                             />
                         </View>
+                    )}
 
-                        {/* 3. CAST & CREW TAB */}
-                        <View style={{ width, minHeight: 400, overflow: 'hidden' }}>
+                    {activeTab === 'Cast & Crew' && (
+                        <View style={{ width: '100%', minHeight: 400 }}>
                             <CastCrewTab
                                 seasonCredits={allSeasonCredits}
                                 onViewMore={() => {
@@ -1574,11 +1554,9 @@ export default function SeriesDetailsScreen() {
                                 }}
                             />
                         </View>
-
-                        {/* 4. SEASONS TAB REMOVED */}
-
-                    </Animated.ScrollView>
+                    )}
                 </View>
+
             </Animated.ScrollView >
 
             {/* NEW SEASON PICKER MODAL */}
@@ -2025,12 +2003,12 @@ const styles = StyleSheet.create({
         letterSpacing: 0.2
     },
     ratingsSection: { //black border for rating
-        paddingVertical: 12, // More compact
+        paddingVertical: 12,
         paddingHorizontal: 20,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)', // Slightly more visible
-        backgroundColor: '#000'
+        borderTopWidth: 1.5,
+        borderTopColor: '#444',
+        backgroundColor: '#000',
+        width: '100%',
     },
     ratingsHeader: {
         color: '#666',
@@ -2038,7 +2016,7 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginBottom: 8 // Tighter
+        marginBottom: 8, // Tighter
     },
     histogramContainer: {
         position: 'relative',

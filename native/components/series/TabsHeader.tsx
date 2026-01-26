@@ -7,15 +7,23 @@ interface TabsHeaderProps {
     tabs: string[];
     activeTab: string;
     onTabPress: (tab: string, index: number) => void;
-    scrollX: Animated.Value;
 }
 
-const TabsHeader: React.FC<TabsHeaderProps> = ({ tabs, activeTab, onTabPress, scrollX }) => {
+const TabsHeader: React.FC<TabsHeaderProps> = ({ tabs, activeTab, onTabPress }) => {
     const tabWidth = width / tabs.length;
-    const indicatorTranslateX = scrollX.interpolate({
-        inputRange: [0, width * (tabs.length - 1)],
-        outputRange: [0, tabWidth * (tabs.length - 1)],
-    });
+    const indicatorX = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const index = tabs.indexOf(activeTab);
+        if (index !== -1) {
+            Animated.spring(indicatorX, {
+                toValue: index * tabWidth,
+                useNativeDriver: true,
+                tension: 50,
+                friction: 8
+            }).start();
+        }
+    }, [activeTab, tabs, tabWidth]);
 
     return (
         <View style={styles.container}>
@@ -45,7 +53,7 @@ const TabsHeader: React.FC<TabsHeaderProps> = ({ tabs, activeTab, onTabPress, sc
                     styles.indicator,
                     {
                         width: tabWidth,
-                        transform: [{ translateX: indicatorTranslateX }],
+                        transform: [{ translateX: indicatorX }],
                     },
                 ]}
             />
@@ -56,9 +64,12 @@ const TabsHeader: React.FC<TabsHeaderProps> = ({ tabs, activeTab, onTabPress, sc
 const styles = StyleSheet.create({
     container: {
         backgroundColor: '#000',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.15)',
+        borderTopWidth: 1.5,
+        borderTopColor: '#444',
+        borderBottomWidth: 1.5,
+        borderBottomColor: '#444',
         zIndex: 100, // Ensure it stays on top when sticky
+        width: '100%',
     },
     tabsContainer: {
         flexDirection: 'row',

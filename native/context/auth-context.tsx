@@ -12,16 +12,20 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
 import { auth, db } from '../utils/firebase';
 import { useRouter, useSegments } from 'expo-router';
 import CryptoJS from 'crypto-js';
+import * as SecureStore from 'expo-secure-store';
 import { WarningModal } from '../components/security/WarningModal';
 import { BanOverlay } from '../components/security/BanOverlay';
 import RecoveryCodeModal from '../components/security/RecoveryCodeModal';
+import { notificationService } from '@/utils/notification-service';
 
 // --- Types ---
+export type BootState = 'BOOTING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
+
 interface AuthContextType {
     currentUser: User | null;
     userData: any | null;
     globalPosters: any | null;
-    isLoading: boolean;
+    bootState: BootState;
     login: (u: string, p: string) => Promise<void>;
     logout: () => Promise<void>;
     signup: (e: string, p: string, u: string, d: string) => Promise<string>; // Returns Recovery Code
@@ -60,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [userData, setUserData] = useState<any | null>(null);
     const [globalPosters, setGlobalPosters] = useState<any | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [bootState, setBootState] = useState<BootState>('BOOTING');
     const [isGuest, setIsGuest] = useState(false);
     const [isSigningUp, setIsSigningUp] = useState(false);
 
@@ -81,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!auth) {
             console.error("Auth instance not found");
-            setIsLoading(false);
+            setBootState('UNAUTHENTICATED');
             return;
         }
 
@@ -104,103 +108,123 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .catch(e => console.log('[AuthContext] Security service unavailable'));
 
             const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-                // IGNORE ANONYMOUS USERS for global state
-                // This prevents the app from redirecting to Home when we just need 
-                // temporary permission for checking usernames/recovery codes.
                 if (currentUser && currentUser.isAnonymous) {
-                    console.log('[Auth] Anonymous session active (hidden from app state)');
-                    setUser(null); // App behaves as if logged out
-                    setIsLoading(false);
+                    console.log('[Auth] Anonymous session active (Utility/Check phase). Ignoring in app state.');
+                    setUser(null);
+                    setBootState(prev => prev === 'BOOTING' ? 'UNAUTHENTICATED' : prev);
                     return;
                 }
 
-                setUser(currentUser);
                 if (currentUser) {
                     setIsGuest(false);
-                    // --- 2. REAL-TIME BAN ENFORCEMENT ---
+                    setUser(currentUser);
+
+                    // PERSIST AUTH TOKEN
+                    try {
+                        await SecureStore.setItemAsync('auth_uid', currentUser.uid);
+                    } catch (e) {
+                        console.warn('Failed to save auth to SecureStore', e);
+                    }
+
+                    // User data listener
+                    let warmupRun = false;
                     unsubUser = onSnapshot(doc(db, 'users', currentUser.uid), (userDoc) => {
                         if (userDoc.exists()) {
                             const data = userDoc.data();
-
                             if (data.isBanned && data.banType === 'permanent') {
-                                console.log('[Auth] Account permanently disabled. Forcing logout.');
                                 logout();
                                 return;
                             }
-
                             setUserData(data);
-                            if (data.customPosters) {
-                                setGlobalPosters(data.customPosters);
+                            if (data.customPosters) setGlobalPosters(data.customPosters);
+
+                            // Definition of AUTHENTICATED: Firebase User + Firestore Data exist + Backend is responding
+                            // We trigger a preload check here to fulfill "dont show homepage until loaded in backend"
+                            if (!warmupRun) {
+                                warmupRun = true;
+                                (async () => {
+                                    try {
+                                        const { getUpNextData } = await import('../utils/up-next-service');
+                                        // Safety Race: 5s max for backend warmup
+                                        await Promise.race([
+                                            getUpNextData(currentUser.uid),
+                                            new Promise((_, reject) => setTimeout(() => reject('timeout'), 5000))
+                                        ]);
+                                        console.log('[Auth] Backend data warmed up.');
+                                    } catch (e) {
+                                        console.warn('[Auth] Backend warmup caveat:', e);
+                                    } finally {
+                                        setBootState(prev => (prev === 'BOOTING' ? 'AUTHENTICATED' : prev));
+                                    }
+                                })();
                             }
 
-                            // RETROACTIVE RECOVERY CODE CHECK
-                            // Check if logged in, data exists, not signing up, and flag missing
-                            // We use a small timeout or check to ensure we don't block main render
+                            // Retroactive Recovery Code
                             if (!data.recoveryCodeSeen && !isSigningUp) {
                                 (async () => {
                                     try {
-                                        // Double check inside async
                                         const freshSnap = await getDoc(doc(db, 'users', currentUser.uid));
                                         if (freshSnap.exists() && !freshSnap.data().recoveryCodeSeen) {
-                                            console.log("[Auth] Generating retroactive recovery code...");
                                             const code = generateRecoveryCode();
                                             const hashed = CryptoJS.SHA256(code).toString();
-
-                                            // Check collision (very rare but safe)
                                             const codeRef = doc(db, 'recovery_codes', hashed);
                                             const codeSnap = await getDoc(codeRef);
-
                                             if (!codeSnap.exists()) {
-                                                // Save Code
-                                                await setDoc(codeRef, {
-                                                    uid: currentUser.uid,
-                                                    createdAt: serverTimestamp(),
-                                                    type: 'retroactive'
-                                                });
-
-                                                // Update User Flag
-                                                await setDoc(doc(db, 'users', currentUser.uid), {
-                                                    recoveryCodeSeen: true
-                                                }, { merge: true });
-
+                                                await setDoc(codeRef, { uid: currentUser.uid, createdAt: serverTimestamp(), type: 'retroactive' });
+                                                await setDoc(doc(db, 'users', currentUser.uid), { recoveryCodeSeen: true }, { merge: true });
                                                 setNewRecoveryCode(code);
                                                 setShowRecoveryModal(true);
                                             }
                                         }
-                                    } catch (e) {
-                                        console.error("[Auth] Retroactive code error", e);
-                                    }
+                                    } catch (e) { console.error("[Auth] Retroactive code error", e); }
                                 })();
                             }
                         } else {
-                            // User metadata missing? Log but don't force logout to prevent data loss or glitch
-                            console.warn("[Auth] User metadata document not found in Firestore.");
+                            console.warn("[Auth] User metadata missing.");
+                            // If user exists in Auth but not Firestore, they might be in partial signup
+                            // or a deleted user. We keep them in BOOTING or transition to UNAUTHENTICATED
+                            // depending on if we are in signup.
+                            if (!isSigningUp) {
+                                setBootState('UNAUTHENTICATED');
+                            }
                         }
-                    }, (err) => console.error("User Snapshot Error:", err));
+                    }, (err) => {
+                        console.error("User Snapshot Error:", err);
+                        setBootState('UNAUTHENTICATED');
+                    });
                 } else {
+                    // LOGGED OUT
+                    await SecureStore.deleteItemAsync('auth_uid');
+                    setUser(null);
                     setUserData(null);
                     setGlobalPosters(null);
-                    if (unsubUser) {
-                        unsubUser();
-                        unsubUser = null;
-                    }
+                    if (unsubUser) { unsubUser(); unsubUser = null; }
+                    setBootState('UNAUTHENTICATED');
                 }
-                setIsLoading(false);
             }, (error) => {
                 console.error("Auth State Error:", error);
-                setIsLoading(false);
+                setBootState('UNAUTHENTICATED');
             });
+
             return () => {
                 unsubAuth();
                 if (unsubUser) unsubUser();
             };
         } catch (e) {
             console.error("Auth init error:", e);
-            setIsLoading(false);
+            setBootState('UNAUTHENTICATED');
         }
     }, []);
 
-    // Simplified refresh (listener handles most cases, but some logic might still need manual trigger)
+    // --- PUSH NOTIFICATION TRIGGER ---
+    useEffect(() => {
+        if (bootState === 'AUTHENTICATED' && user) {
+            console.log('[Auth] Authenticated. refreshing push token...');
+            notificationService.registerForPushNotificationsAsync(user.uid)
+                .catch(err => console.warn('Push token auto-refresh failed', err));
+        }
+    }, [bootState, user]);
+
     const refreshUserData = async () => {
         if (!user) return;
         const snap = await getDoc(doc(db, 'users', user.uid));
@@ -208,8 +232,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserData(snap.data());
         }
     };
-
-
 
     const login = async (usernameOrEmail: string, password: string) => {
         const trimmedInput = usernameOrEmail.trim();
@@ -317,9 +339,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = async () => {
-        await signOut(auth);
-        setUserData(null);
-        router.replace('/login');
+        try {
+            // Detach push token from backend
+            if (user) {
+                // We don't await this blocking UI, but we should start it
+                notificationService.removePushToken(user.uid).catch(e => console.warn('Token removal failed', e));
+            }
+
+            await SecureStore.deleteItemAsync('auth_uid');
+            await signOut(auth);
+            setUserData(null);
+            setBootState('UNAUTHENTICATED');
+            router.replace('/login');
+        } catch (e) {
+            console.error("Logout error", e);
+            // Force local cleanup anyway
+            setUserData(null);
+            setBootState('UNAUTHENTICATED');
+            router.replace('/login');
+        }
     };
 
     // Stub for poster resolution
@@ -332,7 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             currentUser: user,
             userData,
             globalPosters,
-            isLoading,
+            bootState,
             login,
             logout,
             signup,

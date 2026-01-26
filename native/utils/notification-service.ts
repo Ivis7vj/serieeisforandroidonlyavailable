@@ -64,6 +64,25 @@ export const notificationService = {
     },
 
     /**
+     * Remove push token from backend on logout
+     */
+    removePushToken: async (userId: string) => {
+        try {
+            console.log('[NotificationService] Removing push token for user', userId);
+            const userRef = doc(db, 'users', userId);
+            // We set it to null or remove the field. 
+            // Using updateDoc with just the field null is easiest.
+            await updateDoc(userRef, {
+                pushToken: null,
+                lastTokenUpdate: new Date().toISOString()
+            });
+        } catch (error) {
+            console.warn('[NotificationService] Failed to remove token:', error);
+            // Don't block logout
+        }
+    },
+
+    /**
      * Check if user is implicitly subscribed to a series
      */
     isUserSubscribed: async (userId: string, tmdbId: number) => {
