@@ -77,36 +77,52 @@ export default function PersonDetailsScreen() {
         );
     }
 
-    // Credits Categorization Logic
-    const cast = person.combined_credits?.cast || [];
-    const crew = person.combined_credits?.crew || [];
+    // Credits Categorization Logic with safety checks
+    const cast = person?.combined_credits?.cast || [];
+    const crew = person?.combined_credits?.crew || [];
 
     const othersRoles = ['Voice', 'Cameo', 'Self', 'Himself', 'Herself', 'Narrator', 'uncredited'];
 
     const acted = cast.filter((c: any) => {
-        const character = (c.character || '').toLowerCase();
-        return c.media_type === 'tv' && !othersRoles.some(r => character.includes(r.toLowerCase()));
-    }).sort((a: any, b: any) => (b.first_air_date || '0').localeCompare(a.first_air_date || '0'));
+        const character = (c?.character || '').toLowerCase();
+        return c?.media_type === 'tv' && !othersRoles.some(r => character.includes(r.toLowerCase()));
+    }).sort((a: any, b: any) => {
+        const dateA = a?.first_air_date || a?.release_date || '0';
+        const dateB = b?.first_air_date || b?.release_date || '0';
+        return dateB.localeCompare(dateA);
+    });
 
     const directedOrWriter = crew.filter((c: any) =>
-        c.media_type === 'tv' && ['Director', 'Writer', 'Screenplay', 'Teleplay', 'Story'].includes(c.job)
-    ).sort((a: any, b: any) => (b.first_air_date || '0').localeCompare(a.first_air_date || '0'));
+        c?.media_type === 'tv' && ['Director', 'Writer', 'Screenplay', 'Teleplay', 'Story'].includes(c?.job)
+    ).sort((a: any, b: any) => {
+        const dateA = a?.first_air_date || a?.release_date || '0';
+        const dateB = b?.first_air_date || b?.release_date || '0';
+        return dateB.localeCompare(dateA);
+    });
 
     const producers = crew.filter((c: any) =>
-        c.media_type === 'tv' && (c.job || '').toLowerCase().includes('producer')
-    ).sort((a: any, b: any) => (b.first_air_date || '0').localeCompare(a.first_air_date || '0'));
+        c?.media_type === 'tv' && (c?.job || '').toLowerCase().includes('producer')
+    ).sort((a: any, b: any) => {
+        const dateA = a?.first_air_date || a?.release_date || '0';
+        const dateB = b?.first_air_date || b?.release_date || '0';
+        return dateB.localeCompare(dateA);
+    });
 
     const others = [
         ...cast.filter((c: any) => {
-            const character = (c.character || '').toLowerCase();
-            return c.media_type === 'tv' && othersRoles.some(r => character.includes(r.toLowerCase()));
+            const character = (c?.character || '').toLowerCase();
+            return c?.media_type === 'tv' && othersRoles.some(r => character.includes(r.toLowerCase()));
         }),
         ...crew.filter((c: any) =>
-            c.media_type === 'tv' &&
-            !['Director', 'Writer', 'Screenplay', 'Teleplay', 'Story'].includes(c.job) &&
-            !(c.job || '').toLowerCase().includes('producer')
+            c?.media_type === 'tv' &&
+            !['Director', 'Writer', 'Screenplay', 'Teleplay', 'Story'].includes(c?.job) &&
+            !(c?.job || '').toLowerCase().includes('producer')
         )
-    ].sort((a: any, b: any) => (b.first_air_date || '0').localeCompare(a.first_air_date || '0'));
+    ].sort((a: any, b: any) => {
+        const dateA = a?.first_air_date || a?.release_date || '0';
+        const dateB = b?.first_air_date || b?.release_date || '0';
+        return dateB.localeCompare(dateA);
+    });
 
     // Helper for Age
     const getAge = (birthday: string, deathday?: string) => {
@@ -125,13 +141,14 @@ export default function PersonDetailsScreen() {
     const bornYear = person.birthday ? new Date(person.birthday).getFullYear() : null;
 
     const renderPosterGrid = (items: any[], title: string) => {
-        if (items.length === 0) return null;
+        if (!items || items.length === 0) return null;
 
         // Deduplicate by media ID
         const uniqueItems: any[] = [];
         const seen = new Set();
         items.forEach(item => {
-            const key = `${item.media_type}-${item.id}`;
+            if (!item) return;
+            const key = `${item?.media_type}-${item?.id}`;
             if (!seen.has(key)) {
                 seen.add(key);
                 uniqueItems.push(item);
@@ -144,21 +161,26 @@ export default function PersonDetailsScreen() {
                 <View style={styles.posterGrid}>
                     {uniqueItems.map((item, idx) => (
                         <Pressable
-                            key={`${item.media_type}-${item.id}-${idx}`}
+                            key={`${item?.media_type}-${item?.id}-${idx}`}
                             style={styles.posterContainer}
                             onPress={() => {
+                                if (!item?.id) return;
                                 triggerSelection();
-                                router.push(`/${item.media_type === 'tv' ? 'series' : 'movie'}/${item.id}` as any);
+                                router.push(`/${item?.media_type === 'tv' ? 'series' : 'movie'}/${item?.id}` as any);
                             }}
                         >
                             <Image
-                                source={{ uri: item.poster_path ? `https://image.tmdb.org/t/p/w300${item.poster_path}` : 'https://via.placeholder.com/300x450' }}
+                                source={{ uri: item?.poster_path ? `https://image.tmdb.org/t/p/w300${item?.poster_path}` : 'https://via.placeholder.com/300x450' }}
                                 style={styles.posterImage}
                                 contentFit="cover"
                                 transition={300}
                             />
-                            <Text style={styles.posterYear}>{item.release_date || item.first_air_date ? new Date(item.release_date || item.first_air_date).getFullYear() : ''}</Text>
-                            <Text style={styles.posterRole} numberOfLines={2}>{item.character || item.job}</Text>
+                            <Text style={styles.posterYear}>
+                                {item?.release_date || item?.first_air_date
+                                    ? new Date(item?.release_date || item?.first_air_date).getFullYear()
+                                    : ''}
+                            </Text>
+                            <Text style={styles.posterRole} numberOfLines={2}>{item?.character || item?.job || ''}</Text>
                         </Pressable>
                     ))}
                 </View>
@@ -176,7 +198,7 @@ export default function PersonDetailsScreen() {
                 <View style={styles.bioTopRow}>
                     <View style={styles.imageColumn}>
                         <Image
-                            source={{ uri: person.profile_path ? `https://image.tmdb.org/t/p/h632${person.profile_path}` : 'https://via.placeholder.com/600' }}
+                            source={{ uri: person?.profile_path ? `https://image.tmdb.org/t/p/h632${person.profile_path}` : 'https://via.placeholder.com/600' }}
                             style={styles.profileImage}
                             contentFit="cover"
                         />
@@ -184,7 +206,7 @@ export default function PersonDetailsScreen() {
                             {age !== null && (
                                 <Text style={styles.infoText}>Born: {bornYear} - now {age}</Text>
                             )}
-                            {person.place_of_birth && (
+                            {person?.place_of_birth && (
                                 <View style={styles.locationRow}>
                                     <MapPin size={12} color="#888" />
                                     <Text style={styles.infoText} numberOfLines={1}>{person.place_of_birth}</Text>
@@ -192,19 +214,19 @@ export default function PersonDetailsScreen() {
                             )}
 
                             {/* SOCIAL LINKS */}
-                            {person.external_ids && (
+                            {person?.external_ids && (
                                 <View style={styles.personSocials}>
-                                    {person.external_ids.instagram_id && (
+                                    {person.external_ids?.instagram_id && (
                                         <Pressable onPress={() => Linking.openURL(`https://instagram.com/${person.external_ids.instagram_id}`)} style={styles.personSocialBtn}>
                                             <FontAwesome name="instagram" size={14} color="#888" />
                                         </Pressable>
                                     )}
-                                    {person.external_ids.facebook_id && (
+                                    {person.external_ids?.facebook_id && (
                                         <Pressable onPress={() => Linking.openURL(`https://facebook.com/${person.external_ids.facebook_id}`)} style={styles.personSocialBtn}>
                                             <FontAwesome name="facebook" size={14} color="#888" />
                                         </Pressable>
                                     )}
-                                    {person.external_ids.twitter_id && (
+                                    {person.external_ids?.twitter_id && (
                                         <Pressable onPress={() => Linking.openURL(`https://twitter.com/${person.external_ids.twitter_id}`)} style={styles.personSocialBtn}>
                                             <FontAwesome name="twitter" size={14} color="#888" />
                                         </Pressable>
@@ -215,18 +237,18 @@ export default function PersonDetailsScreen() {
                     </View>
 
                     <View style={styles.textColumn}>
-                        <Text style={styles.name}>{person.name}</Text>
-                        {acted.length > 0 && (
+                        <Text style={styles.name}>{person?.name}</Text>
+                        {acted && acted.length > 0 && acted[0]?.character && (
                             <Text style={styles.roleSummary}>
-                                Plays {acted[0].character} in {acted[0].title || acted[0].name}
+                                Plays {acted[0].character} in {acted[0]?.title || acted[0]?.name || 'a series'}
                             </Text>
                         )}
                         <View style={styles.bioContainer}>
                             <Text style={styles.bioHeader}>Bio</Text>
                             <Text style={styles.bioText} numberOfLines={bioExpanded ? undefined : 8}>
-                                {person.biography || `${person.name} is a known figure in the ${person.known_for_department} department.`}
+                                {person?.biography || `${person?.name || 'This person'} is a known figure in the ${person?.known_for_department || 'entertainment'} department.`}
                             </Text>
-                            {person.biography && person.biography.length > 300 && (
+                            {person?.biography && person.biography.length > 300 && (
                                 <Pressable onPress={() => setBioExpanded(!bioExpanded)}>
                                     <Text style={styles.readMore}>{bioExpanded ? 'Show less' : 'Read more'}</Text>
                                 </Pressable>

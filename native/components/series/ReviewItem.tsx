@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth-context';
 import { AlertTriangle } from 'lucide-react-native';
 import { ReportReviewModals } from '../review/ReportReviewModals';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
+import { tmdbApi } from '@/utils/tmdb';
 
 interface ReviewItemProps {
     review: any;
@@ -19,11 +20,16 @@ interface ReviewItemProps {
 const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPress }) => {
     const router = useRouter();
     const { userData, currentUser } = useAuth();
+
+    // Initialize with passed prop, but allow hydration
     const [photoURL, setPhotoURL] = useState<string | null>(review.photoURL || review.photo_url || null);
+    const [username, setUsername] = useState<string>(review.userName || review.user_name || 'User');
+    const [seriesName, setSeriesName] = useState<string>(review.seriesName || review.name || review.series_name || 'Show');
+
     const [reportModalVisible, setReportModalVisible] = useState(false);
 
+    // Hydrate User Data (Fresh Username & Photo)
     useEffect(() => {
-        // ... (UserData fetch logic same)
         const fetchUserData = async () => {
             if (!review.userId) return;
             try {
@@ -31,6 +37,7 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
                 if (userDoc.exists()) {
                     const data = userDoc.data();
                     if (data.photoURL) setPhotoURL(data.photoURL);
+                    if (data.username) setUsername(data.username);
                 }
             } catch (error) {
                 console.error("Error fetching user data:", error);
@@ -38,6 +45,35 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
         };
         fetchUserData();
     }, [review.userId]);
+
+    // Hydrate Series Data (Fresh Series Name if missing/borked)
+    useEffect(() => {
+        const fetchSeriesData = async () => {
+            const currentName = review.seriesName || review.name || review.series_name;
+            const needsFetch = !currentName || currentName === 'Show' || currentName === 'Series';
+            const tmdbId = review.tmdbId || review.tmdb_id;
+
+            if (needsFetch && tmdbId) {
+                try {
+                    const details = await tmdbApi.getSeriesDetails(tmdbId);
+                    if (details && details.name) {
+                        setSeriesName(details.name);
+                    }
+                } catch (error) {
+                    console.error("Error fetching series details:", error);
+                }
+            } else if (currentName) {
+                // Ensure state matches prop if prop was good (e.g. recycling cells)
+                // Actually, the initial state covers this, but if prop changes this effect might need to reset? 
+                // In React Native lists, usually keys handle this, but let's be safe:
+                if (currentName !== 'Show' && currentName !== 'Series') {
+                    setSeriesName(currentName);
+                }
+            }
+        };
+        fetchSeriesData();
+    }, [review.tmdbId, review.seriesName, review.name, review.series_name]);
+
 
     const hasText = (review.review && review.review.trim().length > 0) || (review.review_text && review.review_text.trim().length > 0);
     const ratingVal = review.rating ? parseFloat(review.rating.toString()) : 0;
@@ -72,8 +108,8 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
                     id: review.tmdbId,
                     season: review.seasonNumber,
                     episode: review.episodeNumber,
-                    name: review.seriesName || review.name || (review.userName ? review.userName + "'s Review" : "Review"),
-                    poster_path: review.poster_path,
+                    name: seriesName, // Use fresh name
+                    poster_path: review.poster_path, // Could hydrate this too, but usually poster is fine
                     existingReview: JSON.stringify(review)
                 }
             });
@@ -108,19 +144,17 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
 
                     {/* SERIES INFO HEADER */}
                     <View style={styles.seriesHeader}>
-                        {(review.seriesName || review.name) && (
-                            <TouchableOpacity onPress={(e) => { e.stopPropagation(); navigateToSeries(); }}>
-                                <Text style={styles.seriesTitle} numberOfLines={1}>
-                                    {(review.seriesName || review.name || '').replace(/[\(:\-]?\s*(Season|Episode|S|Ep\.?)\s*\d+.*$/i, '').trim()}
-                                    <Text style={styles.seasonInfoText}>  {seasonInfo}</Text>
-                                </Text>
-                            </TouchableOpacity>
-                        )}
+                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); navigateToSeries(); }}>
+                            <Text style={styles.seriesTitle} numberOfLines={1}>
+                                {seriesName.replace(/[\(:\-]?\s*(Season|Episode|S|Ep\.?)\s*\d+.*$/i, '').trim()}
+                                <Text style={styles.seasonInfoText}>  {seasonInfo}</Text>
+                            </Text>
+                        </TouchableOpacity>
                     </View>
 
                     {/* Username & Stars */}
                     <View style={styles.headerRow}>
-                        <Text style={styles.username}>{review.userName}</Text>
+                        <Text style={styles.username}>{username}</Text>
                         {hasText && (
                             <View style={{ marginLeft: 8 }}>
                                 {renderStars(ratingVal, 10)}
@@ -171,9 +205,9 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review, renderStars, isMe, onPr
                 visible={reportModalVisible}
                 onClose={() => setReportModalVisible(false)}
                 activity={{
-                    user_name: review.userName,
+                    user_name: username,
                     user_id: review.userId,
-                    series_name: review.seriesName || review.name,
+                    series_name: seriesName,
                     season_number: review.seasonNumber,
                     episode_number: review.episodeNumber,
                     review_text: review.review ?? ''

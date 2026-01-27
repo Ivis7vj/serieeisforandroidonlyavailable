@@ -42,30 +42,49 @@ export default function GraphDetailScreen() {
                 setLoading(true);
                 const seriesId = parseInt(id as string);
 
-                const [seriesDetails, reviewRes] = await Promise.all([
+                const [
+                    seriesDetails,
+                    reviewRes,
+                    diaryRes,
+                    ratingRes,
+                    watchedRes
+                ] = await Promise.all([
                     tmdbApi.getSeriesDetails(seriesId),
                     supabase
                         .from('episode_reviews')
                         .select('season_number, episode_number, rating')
                         .eq('user_id', currentUser.uid)
+                        .eq('tmdb_id', seriesId),
+                    supabase
+                        .from('diary_entries')
+                        .select('season_number, episode_number, rating')
+                        .eq('user_id', currentUser.uid)
+                        .eq('tmdb_id', seriesId),
+                    supabase
+                        .from('episode_ratings')
+                        .select('season_number, episode_number, rating')
+                        .eq('user_id', currentUser.uid)
+                        .eq('tmdb_id', seriesId),
+                    supabase
+                        .from('watched_episodes')
+                        .select('season_number, episode_number')
+                        .eq('user_id', currentUser.uid)
                         .eq('tmdb_id', seriesId)
                 ]);
-
-                const { data: watchedRes } = await supabase
-                    .from('watched_episodes')
-                    .select('season_number, episode_number')
-                    .eq('user_id', currentUser.uid)
-                    .eq('tmdb_id', seriesId);
 
                 const userRatings: any = {};
                 const watchedSet = new Set();
 
-                reviewRes.data?.forEach(r => {
-                    userRatings[`${r.season_number}-${r.episode_number}`] = r.rating;
-                    watchedSet.add(`${r.season_number}-${r.episode_number}`);
+                // Merge all rating sources (Latest wins)
+                [...(reviewRes.data || []), ...(diaryRes.data || []), ...(ratingRes.data || [])].forEach(r => {
+                    const key = `${r.season_number}-${r.episode_number}`;
+                    if (r.rating !== null && r.rating !== undefined) {
+                        userRatings[key] = r.rating;
+                        watchedSet.add(key);
+                    }
                 });
 
-                watchedRes?.forEach(w => {
+                watchedRes.data?.forEach((w: any) => {
                     watchedSet.add(`${w.season_number}-${w.episode_number}`);
                 });
 

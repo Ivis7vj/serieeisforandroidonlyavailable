@@ -46,7 +46,7 @@ export default function FullEpisodesScreen() {
                 setEpisodes(data.episodes || []);
 
                 // 2. Load Reviews (Fetch ALL series reviews so episode ratings show up)
-                const revs = await reviewService.getSeriesReviews(seriesId);
+                const revs = await reviewService.getSeriesReviews(seriesId, seriesName);
                 setReviews(revs || []);
 
                 if (currentUser) {

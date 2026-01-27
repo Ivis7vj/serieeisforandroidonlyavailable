@@ -332,7 +332,14 @@ export default function PublicProfileScreen() {
 
                             <View style={styles.statsContainer}>
                                 <View style={styles.statBox}>
-                                    <Text style={styles.statNum}>{profileData?.diary?.filter((d: any) => new Date(d.date).getFullYear() === new Date().getFullYear()).length || 0}</Text>
+                                    <Text style={styles.statNum}>
+                                        {profileData?.diary ?
+                                            new Set(profileData.diary
+                                                .filter((d: any) => d.date && d.date.startsWith(new Date().getFullYear().toString()))
+                                                .map((d: any) => `${d.tmdbId}-${d.seasonNumber}`)
+                                            ).size : 0
+                                        }
+                                    </Text>
                                     <Text style={styles.statLabel}>THIS YEAR</Text>
                                 </View>
                                 <TouchableOpacity

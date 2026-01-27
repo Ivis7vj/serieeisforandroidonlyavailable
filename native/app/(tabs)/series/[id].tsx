@@ -160,26 +160,23 @@ export default function SeriesDetailsScreen() {
         }
     }, [details?.name]);
 
+    const showHeaderTitleRef = useRef(false);
+
     useEffect(() => {
         const listener = scrollY.addListener(({ value }) => {
-            // Show title immediately when the on-page title scrolls past the header area
-            // titleY is the layout Y position. We trigger when scroll > titleY.
             const threshold = titleY.current > 0 ? titleY.current : 300;
+            const shouldShow = value > threshold;
 
-            if (value > threshold && !showHeaderTitle) {
-                setShowHeaderTitle(true);
-                if (paramsRef.current.showHeaderTitle !== 'true') {
-                    router.setParams({ showHeaderTitle: 'true' });
-                }
-            } else if (value <= threshold && showHeaderTitle) {
-                setShowHeaderTitle(false);
-                if (paramsRef.current.showHeaderTitle !== 'false') {
-                    router.setParams({ showHeaderTitle: 'false' });
-                }
+            if (shouldShow !== showHeaderTitleRef.current) {
+                showHeaderTitleRef.current = shouldShow;
+                setShowHeaderTitle(shouldShow);
+                // Update route params for the Header component to see, 
+                // but we use a local ref to avoid effect recursion.
+                router.setParams({ showHeaderTitle: String(shouldShow) });
             }
         });
         return () => scrollY.removeListener(listener);
-    }, [showHeaderTitle, details?.name, titleY.current]);
+    }, [details?.name]); // Removed showHeaderTitle from deps to break the recursion
 
     // RESOLVE POSTER & COUNTS
     const currentSeasonTMDBPoster = useMemo(() => {
@@ -482,11 +479,15 @@ export default function SeriesDetailsScreen() {
     useEffect(() => {
         if (!id) return;
         const loadReviews = async () => {
-            const reviews = await reviewService.getSeriesReviews(parseInt(id as string));
+            const seriesName = details?.name || details?.original_name || null;
+            const reviews = await reviewService.getSeriesReviews(parseInt(id as string), seriesName);
             setReviewsData(reviews);
         };
-        loadReviews();
-    }, [id]);
+        // Trigger when details loads so we have the name
+        if (details) {
+            loadReviews();
+        }
+    }, [id, details]);
 
     // SYNC USER STATE
     useEffect(() => {
@@ -1226,8 +1227,10 @@ export default function SeriesDetailsScreen() {
                                 <Pressable
                                     key={creator.id}
                                     onPress={() => {
-                                        triggerSelection();
-                                        router.push(`/person/${creator.id}`);
+                                        if (creator?.id) {
+                                            triggerSelection();
+                                            router.push(`/person/${creator.id}`);
+                                        }
                                     }}
                                 >
                                     <Text style={styles.creatorName} numberOfLines={1}>
@@ -1547,10 +1550,15 @@ export default function SeriesDetailsScreen() {
                             <CastCrewTab
                                 seasonCredits={allSeasonCredits}
                                 onViewMore={() => {
-                                    router.push({
-                                        pathname: `/series-credits/${details.id}` as any,
-                                        params: { season: selectedSeason }
-                                    });
+                                    if (details?.id) {
+                                        router.push({
+                                            pathname: `/series-credits/${details.id}` as any,
+                                            params: {
+                                                season: selectedSeason,
+                                                seasonName: seasonDetails?.name || `Season ${selectedSeason}`
+                                            }
+                                        });
+                                    }
                                 }}
                             />
                         </View>

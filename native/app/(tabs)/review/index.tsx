@@ -139,7 +139,7 @@ export default function ReviewCreationScreen() {
                 if (type === 'episode' && episodeNum !== undefined) {
                     reviews = await reviewService.getEpisodeReviews(tmdbId, seasonNum, episodeNum);
                 } else {
-                    reviews = await reviewService.getSeasonReviews(tmdbId, seasonNum);
+                    reviews = await reviewService.getSeasonReviews(tmdbId, seasonNum, itemName);
                 }
 
                 const currentUid = String(currentUser.uid);

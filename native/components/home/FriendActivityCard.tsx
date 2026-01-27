@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { Star, Heart } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -48,7 +47,7 @@ export function FriendActivityCard({ activity, onPress }: FriendActivityCardProp
     };
 
     return (
-        <GHTouchableOpacity
+        <TouchableOpacity
             style={styles.container}
             activeOpacity={0.7}
             onPress={onPress}
@@ -70,6 +69,7 @@ export function FriendActivityCard({ activity, onPress }: FriendActivityCardProp
                 <Pressable
                     style={styles.userRow}
                     onPress={() => router.push(`/(tabs)/public-profile/${activity.user_id}` as any)}
+                    hitSlop={8}
                 >
                     <View style={styles.avatarWrapper}>
                         <Image
@@ -88,7 +88,7 @@ export function FriendActivityCard({ activity, onPress }: FriendActivityCardProp
                     )}
                 </View>
             </View>
-        </GHTouchableOpacity>
+        </TouchableOpacity>
     );
 }
 

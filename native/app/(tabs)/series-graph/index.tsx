@@ -37,7 +37,7 @@ export default function GraphScreen() {
         try {
             setLoading(true);
 
-            // 1. Fetch ALL watched episodes
+            // 1. Fetch ALL watched episodes (Source of Truth for now)
             const { data: watchedData, error: watchedError } = await supabase
                 .from('watched_episodes')
                 .select('tmdb_id, season_number, episode_number')
@@ -54,17 +54,26 @@ export default function GraphScreen() {
             });
 
             const completed: any[] = [];
+            const today = new Date().toISOString().split('T')[0];
 
-            // 2. Check each series for completion
+            // 2. Check each series for completion (Filtering by Aired Content)
             for (const id of Object.keys(seriesMap)) {
                 try {
                     const seriesId = parseInt(id);
                     const details = await tmdbApi.getSeriesDetails(seriesId);
+                    if (!details) continue;
+
                     const regularSeasons = (details.seasons || []).filter((s: any) => s.season_number > 0);
 
+                    // Filter seasons that have actually AIRED
+                    const airedSeasons = regularSeasons.filter((s: any) => {
+                        return s.air_date && s.air_date <= today && s.episode_count > 0;
+                    });
+
+                    if (airedSeasons.length === 0) continue;
+
                     let isAllCompleted = true;
-                    // Check every regular season
-                    for (const season of regularSeasons) {
+                    for (const season of airedSeasons) {
                         const watchedInSeason = seriesMap[seriesId].watched.filter((w: any) => w.season_number === season.season_number);
                         if (watchedInSeason.length < season.episode_count) {
                             isAllCompleted = false;
@@ -72,10 +81,7 @@ export default function GraphScreen() {
                         }
                     }
 
-                    // Must have seasons to be "completed"
-                    if (isAllCompleted && regularSeasons.length > 0) {
-                        // Find logo (en or highest rated)
-                        // Note: logos are in details.images.logos if appended, usually tmdbApi handles append_to_response
+                    if (isAllCompleted) {
                         const logos = details.images?.logos || [];
                         const enLogo = logos.filter((l: any) => l.iso_639_1 === 'en').sort((a: any, b: any) => b.vote_average - a.vote_average)[0]?.file_path
                             || logos.filter((l: any) => !l.iso_639_1).sort((a: any, b: any) => b.vote_average - a.vote_average)[0]?.file_path
@@ -84,9 +90,8 @@ export default function GraphScreen() {
                         completed.push({
                             id: seriesId,
                             name: details.name,
-                            poster_path: details.poster_path, // Fallback, resolved later
+                            poster_path: details.poster_path,
                             logo_path: enLogo,
-                            seasons: regularSeasons
                         });
                     }
                 } catch (err) {

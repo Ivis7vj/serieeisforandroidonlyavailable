@@ -5,6 +5,7 @@ import { logActivity } from './activity-logger';
 
 import { tmdbApi } from './tmdb';
 import { handleServiceError } from '@/utils/network-event';
+import { checkCompletion, checkEpisodeProgress } from './completion-service';
 
 export const getWatchedEpisodes = async (userId: string, tmdbId: number) => {
     if (!userId || !tmdbId) return [];
@@ -85,6 +86,10 @@ export const markEpisodeWatched = async (userId: string, tmdbId: number, seasonN
                 episodeNumber: episodeNumber
             }
         );
+
+        // Completion Check Hook
+        await checkCompletion(userId, tmdbId);
+        await checkEpisodeProgress(userId, tmdbId, seasonNumber);
 
         return true;
     } catch (error) {
@@ -179,9 +184,12 @@ export const markSeasonWatched = async (userId: string, tmdbId: number, seasonNu
             }
         );
 
+        // Completion Check Hook
+        await checkCompletion(userId, tmdbId);
+        await checkEpisodeProgress(userId, tmdbId, seasonNumber);
+
         console.log(`[WatchedService] Successfully marked ${episodes.length} episodes as watched`);
         return true;
-        // ... existing code ...
     } catch (error) {
         handleServiceError(error, 'WatchedService');
         return false;

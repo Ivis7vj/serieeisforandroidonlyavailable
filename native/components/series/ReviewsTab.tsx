@@ -40,22 +40,27 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
     };
 
     // 2. Categorize reviews
-    // PUBLIC: Strictly season-specific
+    const isThisSeason = (r: any) =>
+        Number(r.seasonNumber) === Number(selectedSeason) ||
+        Number(r.seasonNumber) === 0 ||
+        r.seasonNumber === null;
+
+    // PUBLIC: Strictly season-specific OR Series level
     const publicReviews = reviews.filter(r =>
-        Number(r.seasonNumber) === Number(selectedSeason) &&
+        isThisSeason(r) &&
         r.userId !== currentUser?.uid &&
         !userData?.following?.includes(r.userId)
     );
 
-    // FRIENDS & YOU: Strictly season-specific
+    // FRIENDS & YOU: Strictly season-specific OR Series level
     const friendsReviews = reviews.filter(r =>
+        isThisSeason(r) &&
         userData?.following?.includes(r.userId) &&
-        r.userId !== currentUser?.uid &&
-        Number(r.seasonNumber) === Number(selectedSeason)
+        r.userId !== currentUser?.uid
     );
     const youReviews = reviews.filter(r =>
         r.userId === currentUser?.uid &&
-        Number(r.seasonNumber) === Number(selectedSeason)
+        isThisSeason(r)
     );
 
     // 3. Filter for current display

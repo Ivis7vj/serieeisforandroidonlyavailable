@@ -124,23 +124,14 @@ export const getUserProfileData = async (userId: string) => {
         const activityPreview = activitySnap.docs.map((d: any) => ({ ...d.data(), id: d.id }));
 
         // Hydrate both Lists for season-specific posters
-        const [likes, hydratedWatchlist] = await Promise.all([
+        const [likes, hydratedWatchlist, hydratedDiary] = await Promise.all([
             hydrateMediaItems(rawLikes),
-            hydrateMediaItems(watchlist)
+            hydrateMediaItems(watchlist),
+            hydrateMediaItems(diaryReviews || [])
         ]);
 
         // Diary entries from diaryService.getUserDiary are already normalized
-        const diary = (diaryReviews || []).map(entry => {
-            const custom = userInfo?.customPosters || {};
-            const key = `${entry.tmdbId}_${entry.seasonNumber}`;
-            const seriesKey = `${entry.tmdbId}_0`;
-            const customPath = custom[key] || custom[seriesKey] || custom[entry.tmdbId];
-
-            return {
-                ...entry,
-                posterPath: customPath ? (typeof customPath === 'string' ? customPath : customPath.path) : entry.posterPath
-            };
-        });
+        const diary = hydratedDiary || [];
 
         // Helper to attach ratings
         const mergeRatings = (items: any[]) => {

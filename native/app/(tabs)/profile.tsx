@@ -61,7 +61,7 @@ const PosterGridItem = ({ item, onPress, showBadges = false, userPosters }: Post
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
             />
-            {showBadges && item.seasonNumber && (
+            {showBadges && (item.seasonNumber !== undefined && item.seasonNumber !== null) && (
                 <View style={styles.diarySeasonBadge}>
                     <Text style={styles.diarySeasonText}>S{item.seasonNumber}</Text>
                 </View>
@@ -72,11 +72,15 @@ const PosterGridItem = ({ item, onPress, showBadges = false, userPosters }: Post
                 </View>
             )}
             {showBadges && item.date && (
-                <View style={styles.diaryDateBadge}>
+                <TouchableOpacity style={styles.diaryDateBadge} activeOpacity={1}>
                     <Text style={styles.diaryDateText}>
-                        {new Date(item.date).getDate()} {new Date(item.date).toLocaleString('default', { month: 'short' })}
+                        {(() => {
+                            const [y, m, d] = item.date.split('-');
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
+                        })()}
                     </Text>
-                </View>
+                </TouchableOpacity>
             )}
         </Pressable>
     );
@@ -86,16 +90,14 @@ export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { uid } = useLocalSearchParams();
-    const { currentUser, globalPosters, isLoading: authLoading, userData: authUserData } = useAuth();
+    const { currentUser, globalPosters, bootState, userData: authUserData } = useAuth();
     const targetUid = (uid as string) || currentUser?.uid;
     const isOwnProfile = !uid || targetUid === currentUser?.uid;
 
     const [profileData, setProfileData] = useState<any>(null);
 
-    const user = useMemo(() => {
-        if (isOwnProfile && authUserData) return authUserData;
-        return profileData?.userInfo;
-    }, [isOwnProfile, authUserData, profileData?.userInfo]);
+    // REVERT: Use profileData consistently to ensure hydration matches (fixes Favorites)
+    const user = profileData?.userInfo;
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [isFollowing, setIsFollowing] = useState(false);
@@ -111,11 +113,11 @@ export default function ProfileScreen() {
 
     // PROTECT "MY PROFILE" FROM GUESTS
     useEffect(() => {
-        if (!authLoading && !currentUser && !uid) {
+        if (bootState !== 'BOOTING' && !currentUser && !uid) {
             // User is Guest AND trying to view "My Profile" tab -> Redirect to Login
             router.replace('/login');
         }
-    }, [authLoading, currentUser, uid]);
+    }, [bootState, currentUser, uid]);
 
     const animatedFollowStyle = useAnimatedStyle(() => ({
         transform: [{ scale: followIconScale.value }]
@@ -218,7 +220,7 @@ export default function ProfileScreen() {
 
     // Special Guest Return? Or just wait for redirect?
     // If we return null immediately when !targetUid, we avoid flicker or errors.
-    if (!authLoading && !targetUid) return null;
+    if (bootState !== 'BOOTING' && !targetUid) return null;
 
     if (loading && !profileData) {
         return (
@@ -330,7 +332,14 @@ export default function ProfileScreen() {
 
                             <View style={styles.statsContainer}>
                                 <View style={styles.statBox}>
-                                    <Text style={styles.statNum}>{profileData?.diary?.filter((d: any) => new Date(d.date).getFullYear() === new Date().getFullYear()).length || 0}</Text>
+                                    <Text style={styles.statNum}>
+                                        {profileData?.diary ?
+                                            new Set(profileData.diary
+                                                .filter((d: any) => d.date && d.date.startsWith(new Date().getFullYear().toString()))
+                                                .map((d: any) => `${d.tmdbId}-${d.seasonNumber}`)
+                                            ).size : 0
+                                        }
+                                    </Text>
                                     <Text style={styles.statLabel}>THIS YEAR</Text>
                                 </View>
                                 <TouchableOpacity

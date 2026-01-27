@@ -29,7 +29,7 @@ export const getEpisodeReviews = async (tmdbId: number, seasonNumber: number, ep
                 episodeNumber: review.episode_number,
                 review: review.review_text,
                 rating: review.rating?.toString(),
-                createdAt: review.created_at,
+                createdAt: review.created_at || new Date().toISOString(),
                 isEpisode: true,
                 source: 'supabase'
             }));
@@ -58,57 +58,125 @@ export const getEpisodeReviews = async (tmdbId: number, seasonNumber: number, ep
 
 export const getUserReviews = async (userId: string) => {
     try {
-        const [episodeReviews, seasonReviews] = await Promise.all([
-            supabase
-                .from('episode_reviews')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false }),
-            supabase
-                .from('season_reviews')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false })
+        const [
+            epReviews,
+            sReviews,
+            diaryEntries,
+            epRatings,
+            sRatings
+        ] = await Promise.all([
+            supabase.from('episode_reviews').select('*').eq('user_id', userId),
+            supabase.from('season_reviews').select('*').eq('user_id', userId),
+            supabase.from('diary_entries').select('*').eq('user_id', userId),
+            supabase.from('episode_ratings').select('*').eq('user_id', userId),
+            supabase.from('season_ratings').select('*').eq('user_id', userId)
         ]);
 
-        const supabaseReviews = [
-            ...(episodeReviews.data || []).map(r => ({
+        const mapped = [
+            ...(epReviews.data || []).map(r => ({
                 ...r,
                 id: r.id,
                 userId: r.user_id,
                 tmdbId: r.tmdb_id,
-                seriesId: r.series_id,
+                seriesName: r.series_name || r.name || 'Show',
+                name: r.series_name || r.name || 'Show',
                 seasonNumber: r.season_number,
                 episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
                 review: r.review_text,
                 rating: r.rating?.toString(),
-                createdAt: r.created_at,
-                name: r.series_name,
+                createdAt: r.created_at || new Date().toISOString(),
                 poster_path: r.poster_path,
                 isEpisode: true,
-                source: 'supabase'
+                source: 'supabase_review'
             })),
-            ...(seasonReviews.data || []).map(r => ({
+            ...(sReviews.data || []).map(r => ({
                 ...r,
                 id: r.id,
                 userId: r.user_id,
                 tmdbId: r.tmdb_id,
+                seriesName: r.series_name || r.name || 'Show',
+                name: r.series_name || r.name || 'Show',
                 seasonNumber: r.season_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
                 review: r.review_text,
                 rating: r.rating?.toString(),
-                createdAt: r.created_at,
-                name: r.series_name,
+                createdAt: r.created_at || new Date().toISOString(),
                 poster_path: r.poster_path,
                 isSeason: true,
-                source: 'supabase'
+                source: 'supabase_review'
+            })),
+            ...(diaryEntries.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: r.series_name || r.name || 'Show',
+                name: r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.watched_at || r.created_at || new Date().toISOString(),
+                poster_path: r.poster_path,
+                isSeason: !r.episode_number,
+                isEpisode: !!r.episode_number,
+                source: 'supabase_diary'
+            })),
+            ...(epRatings.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: r.series_name || r.name,
+                name: r.series_name || r.name,
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+                poster_path: r.poster_path,
+                isEpisode: true,
+                source: 'supabase_rating'
+            })),
+            ...(sRatings.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: r.series_name || r.name,
+                name: r.series_name || r.name,
+                seasonNumber: r.season_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+                poster_path: r.poster_path,
+                isSeason: true,
+                source: 'supabase_rating'
             }))
         ];
 
-        // ADD FIREBASE FALLBACK
-        const q = query(
-            collection(db, 'reviews'),
-            where('userId', '==', userId)
-        );
+        // Deduplicate
+        const seen = new Set();
+        const unique = [];
+        mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        for (const item of mapped) {
+            const key = `${item.tmdbId}-${item.seasonNumber}-${item.episodeNumber || 0}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(item);
+            }
+        }
+
+        // Add Firebase
+        const q = query(collection(db, 'reviews'), where('userId', '==', userId));
         const fbSnap = await getDocs(q);
         const firebaseReviews = fbSnap.docs.map(doc => {
             const data = doc.data();
@@ -120,84 +188,140 @@ export const getUserReviews = async (userId: string) => {
             };
         });
 
-        const allReviews = [...supabaseReviews, ...firebaseReviews];
-
-        return allReviews.sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        const all = [...unique, ...firebaseReviews];
+        return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } catch (error) {
-        console.error('[ReviewService] Get User Reviews Error:', error);
+        console.error('[ReviewService] Unified Get User Reviews Error:', error);
         return [];
     }
 };
 
-export const getSeriesReviews = async (tmdbId: number) => {
+export const getSeriesReviews = async (tmdbId: number, knownSeriesName: string | null = null) => {
     try {
-        const [episodeReviews, seasonReviews] = await Promise.all([
-            supabase
-                .from('episode_reviews')
-                .select('*')
-                .eq('tmdb_id', tmdbId)
-                .order('created_at', { ascending: false }),
-            supabase
-                .from('season_reviews')
-                .select('*')
-                .eq('tmdb_id', tmdbId)
-                .order('created_at', { ascending: false })
+        const [
+            epReviews,
+            sReviews,
+            diaryEntries,
+            epRatings,
+            sRatings
+        ] = await Promise.all([
+            supabase.from('episode_reviews').select('*').eq('tmdb_id', tmdbId),
+            supabase.from('season_reviews').select('*').eq('tmdb_id', tmdbId),
+            supabase.from('diary_entries').select('*').eq('tmdb_id', tmdbId),
+            supabase.from('episode_ratings').select('*').eq('tmdb_id', tmdbId),
+            supabase.from('season_ratings').select('*').eq('tmdb_id', tmdbId)
         ]);
 
-        const supabaseReviews = [
-            ...(episodeReviews.data || []).map(r => ({
+        const mapped = [
+            ...(epReviews.data || []).map(r => ({
                 ...r,
                 id: r.id,
                 userId: r.user_id,
                 tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
                 seasonNumber: r.season_number,
                 episodeNumber: r.episode_number,
-                review: r.review_text,
-                rating: r.rating?.toString(),
-                createdAt: r.created_at,
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || new Date().toISOString(),
                 isEpisode: true,
-                source: 'supabase'
+                source: 'supabase_review'
             })),
-            ...(seasonReviews.data || []).map(r => ({
+            ...(sReviews.data || []).map(r => ({
                 ...r,
                 id: r.id,
                 userId: r.user_id,
                 tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
                 seasonNumber: r.season_number,
-                review: r.review_text,
-                rating: r.rating?.toString(),
-                createdAt: r.created_at,
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || new Date().toISOString(),
                 isSeason: true,
-                source: 'supabase'
+                source: 'supabase_review'
+            })),
+            ...(diaryEntries.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.watched_at || r.created_at || new Date().toISOString(),
+                isSeason: !r.episode_number,
+                isEpisode: !!r.episode_number,
+                source: 'supabase_diary'
+            })),
+            ...(epRatings.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+                isEpisode: true,
+                source: 'supabase_rating'
+            })),
+            ...(sRatings.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+                isSeason: true,
+                source: 'supabase_rating'
             }))
         ];
 
-        // ADD FIREBASE FALLBACK
+        // Deduplicate
+        const seen = new Set();
+        const unique = [];
+        mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        for (const item of mapped) {
+            const key = `${item.userId}-${item.seasonNumber}-${item.episodeNumber || 0}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(item);
+            }
+        }
+
+        // Add Firebase
         const q = query(
             collection(db, 'reviews'),
             where('tmdbId', '==', tmdbId)
         );
         const fbSnap = await getDocs(q);
-        const firebaseReviews = fbSnap.docs.map(doc => ({
-            ...doc.data(),
-            id: doc.id,
-            source: 'firebase'
-        }));
+        const firebaseReviews = fbSnap.docs.map(doc => ({ ...doc.data(), id: doc.id, source: 'firebase' }));
 
-        const allReviews = [...supabaseReviews, ...firebaseReviews];
-
-        return allReviews.sort((a: any, b: any) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        const all = [...unique, ...firebaseReviews];
+        return all.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     } catch (error) {
-        console.error('[ReviewService] Get Series Reviews Error:', error);
+        console.error('[ReviewService] Unified Get Series Reviews Error:', error);
         return [];
     }
 };
@@ -375,63 +499,125 @@ export const updateEpisodeReview = async (
     }
 };
 
-export const getSeasonReviews = async (tmdbId: number, seasonNumber: number) => {
+export const getSeasonReviews = async (tmdbId: number, seasonNumber: number, knownSeriesName: string | null = null) => {
     try {
-        const [seasonRes, episodesRes] = await Promise.all([
-            supabase
-                .from('season_reviews')
-                .select('*')
-                .eq('tmdb_id', tmdbId)
-                .eq('season_number', seasonNumber)
-                .order('created_at', { ascending: false }),
-            supabase
-                .from('episode_reviews')
-                .select('*')
-                .eq('tmdb_id', tmdbId)
-                .eq('season_number', seasonNumber)
-                .order('created_at', { ascending: false })
+        const [
+            epReviews,
+            sReviews,
+            diaryEntries,
+            epRatings,
+            sRatings
+        ] = await Promise.all([
+            supabase.from('episode_reviews').select('*').eq('tmdb_id', tmdbId).eq('season_number', seasonNumber),
+            supabase.from('season_reviews').select('*').eq('tmdb_id', tmdbId).eq('season_number', seasonNumber),
+            supabase.from('diary_entries').select('*').eq('tmdb_id', tmdbId).eq('season_number', seasonNumber),
+            supabase.from('episode_ratings').select('*').eq('tmdb_id', tmdbId).eq('season_number', seasonNumber),
+            supabase.from('season_ratings').select('*').eq('tmdb_id', tmdbId).eq('season_number', seasonNumber)
         ]);
 
-        if (seasonRes.error) throw seasonRes.error;
-        if (episodesRes.error) throw episodesRes.error;
-
-        const allReviews = [
-            ...(seasonRes.data || []).map(r => ({
+        const mapped = [
+            ...(epReviews.data || []).map(r => ({
                 ...r,
                 id: r.id,
                 userId: r.user_id,
                 tmdbId: r.tmdb_id,
-                seasonNumber: r.season_number,
-                review: r.review_text,
-                rating: r.rating?.toString(),
-                createdAt: r.created_at,
-                userName: r.user_name || 'User',
-                photoURL: r.photo_url,
-                isSeason: true,
-                source: 'supabase'
-            })),
-            ...(episodesRes.data || []).map(r => ({
-                ...r,
-                id: r.id,
-                userId: r.user_id,
-                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
                 seasonNumber: r.season_number,
                 episodeNumber: r.episode_number,
-                review: r.review_text,
-                rating: r.rating?.toString(),
-                createdAt: r.created_at,
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || new Date().toISOString(),
                 isEpisode: true,
-                source: 'supabase'
+                source: 'supabase_review'
+            })),
+            ...(sReviews.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || new Date().toISOString(),
+                isSeason: true,
+                source: 'supabase_review'
+            })),
+            ...(diaryEntries.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                review: r.review_text,
+                rating: r.rating?.toString(),
+                createdAt: r.watched_at || r.created_at || new Date().toISOString(),
+                isSeason: !r.episode_number,
+                isEpisode: !!r.episode_number,
+                source: 'supabase_diary'
+            })),
+            ...(epRatings.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                episodeNumber: r.episode_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+                isEpisode: true,
+                source: 'supabase_rating'
+            })),
+            ...(sRatings.data || []).map(r => ({
+                ...r,
+                id: r.id,
+                userId: r.user_id,
+                tmdbId: r.tmdb_id,
+                seriesName: knownSeriesName || r.series_name || r.name || 'Show',
+                name: knownSeriesName || r.series_name || r.name || 'Show',
+                seasonNumber: r.season_number,
+                userName: r.user_name || 'User',
+                photoURL: r.photo_url,
+                rating: r.rating?.toString(),
+                createdAt: r.created_at || r.updated_at || new Date().toISOString(),
+                isSeason: true,
+                source: 'supabase_rating'
             }))
         ];
 
-        return allReviews.sort((a: any, b: any) =>
+        // Deduplicate
+        const seen = new Set();
+        const unique = [];
+        mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        for (const item of mapped) {
+            const key = `${item.userId}-${item.seasonNumber}-${item.episodeNumber || 0}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                unique.push(item);
+            }
+        }
+
+        return unique.sort((a: any, b: any) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
     } catch (error) {
-        console.error('[ReviewService] Get Season Reviews Error:', error);
+        console.error('[ReviewService] Unified Get Season Reviews Error:', error);
         return [];
     }
 };
@@ -477,7 +663,7 @@ export const getPaginatedSeasonReviews = async (
             .from('season_reviews')
             .select('*')
             .eq('tmdb_id', tmdbId)
-            .eq('season_number', seasonNumber)
+            .in('season_number', [seasonNumber, 0])
             .order('created_at', { ascending: false })
             .limit(limit);
 
@@ -520,7 +706,7 @@ export const getPaginatedSeasonReviews = async (
                 seasonNumber: r.season_number,
                 review: r.review_text,
                 rating: r.rating?.toString(),
-                createdAt: r.created_at,
+                createdAt: r.created_at || new Date().toISOString(),
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
                 isSeason: true,
@@ -535,7 +721,7 @@ export const getPaginatedSeasonReviews = async (
                 episodeNumber: r.episode_number,
                 review: r.review_text,
                 rating: r.rating?.toString(),
-                createdAt: r.created_at,
+                createdAt: r.created_at || new Date().toISOString(),
                 userName: r.user_name || 'User',
                 photoURL: r.photo_url,
                 isEpisode: true,

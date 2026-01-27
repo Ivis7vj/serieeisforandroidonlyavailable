@@ -12,7 +12,7 @@ import { activityService } from '@/utils/activityService';
 import ActivityItem from '@/components/friends/activity-item';
 import Skeleton from '@/components/skeleton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ReviewDrawer from '@/components/review/ReviewDrawer';
+import { FriendReviewDrawer } from '@/components/home/FriendReviewDrawer';
 
 export default function FriendsScreen() {
     const insets = useSafeAreaInsets();
@@ -271,12 +271,18 @@ export default function FriendsScreen() {
     };
 
     const handleActivityPress = (activity: any) => {
-        // Map Activity to ReviewDrawer Format
+        // Map Activity to FriendReviewDrawer Format (snake_case)
         const reviewData = {
-            ...activity,
-            name: activity.seriesName,
+            tmdb_id: activity.tmdbId,
+            season_number: activity.seasonNumber,
             poster_path: activity.posterPath,
-            isEpisode: !!activity.episodeNumber,
+            series_name: activity.seriesName,
+            user_name: activity.username,
+            user_id: activity.userId,
+            photo_url: activity.userProfilePicURL,
+            rating: activity.rating,
+            review_text: activity.review,
+            // Extra fields if needed, but the interface handles these
         };
         setSelectedReview(reviewData);
         setDrawerVisible(true);
@@ -381,15 +387,14 @@ export default function FriendsScreen() {
                 )}
             </View>
 
-            {/* Review Drawer */}
-            <ReviewDrawer
+            {/* Friend Review Drawer */}
+            <FriendReviewDrawer
                 visible={drawerVisible}
                 onClose={() => {
                     setDrawerVisible(false);
                     setSelectedReview(null);
                 }}
-                reviewData={selectedReview}
-                onReviewChanged={fetchActivities}
+                activity={selectedReview}
             />
         </View>
     );

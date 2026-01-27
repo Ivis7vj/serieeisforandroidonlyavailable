@@ -57,6 +57,14 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
         }
     }, [entry, visible]);
 
+    const isFutureDate = useMemo(() => {
+        const selected = new Date(date);
+        selected.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return selected > today;
+    }, [date]);
+
     const resolvedPoster = useMemo(() => {
         if (!entry) return null;
         return getResolvedPosterUrl(
@@ -73,73 +81,26 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
         setIsLoading(true);
 
         try {
-            const isEpisode = !!entry.episodeNumber || entry.isEpisode;
             const updates = {
                 review: reviewText,
                 rating: rating,
-                date: date.toISOString() // Note: Supabase updates 'updated_at', 'created_at' usually isn't changed. But UI uses 'date'.
+                date: date.toISOString().split('T')[0] // Save as stable YYYY-MM-DD
             };
 
-            let success = false;
+            const result = await diaryService.updateDiaryEntry(entry, updates);
 
-            // Common args
-            // ... (rest is same logic, just ensure we await correctly)
-
-            if (isEpisode) {
-                // (userId, tmdbId, seasonNumber, episodeNumber, reviewText, ...)
-                // @ts-ignore
-                success = await updateEpisodeReview(
-                    entry.userId,
-                    entry.tmdbId,
-                    entry.seasonNumber,
-                    entry.episodeNumber,
-                    reviewText,
-                    rating,
-                    entry.userName,
-                    entry.photoURL,
-                    entry.seriesName || entry.name,
-                    entry.poster_path,
-                    entry.id,
-                    date.toISOString() // Update Date
-                );
-            } else {
-                // (userId, tmdbId, seasonNumber, reviewText, ...)
-                // @ts-ignore
-                success = await updateSeasonReview(
-                    entry.userId,
-                    entry.tmdbId,
-                    entry.seasonNumber,
-                    reviewText,
-                    rating,
-                    entry.userName,
-                    entry.photoURL,
-                    entry.seriesName || entry.name,
-                    entry.poster_path,
-                    entry.id,
-                    date.toISOString() // Update Date
-                );
-
-                // SYNC WITH DIARY TABLE (Seasons Only as requested)
-                if (!isEpisode) {
-                    await diaryService.createDiaryEntry(
-                        entry.userId,
-                        { id: entry.tmdbId, name: entry.seriesName || entry.name, poster_path: entry.poster_path },
-                        entry.seasonNumber,
-                        { rating, review: reviewText, poster_path: entry.poster_path },
-                        date.toISOString()
-                    );
-                }
-            }
-
-            if (success) {
-                // Update local object with new values
+            if (result.success && result.data) {
+                // Update local object with the exact backend replica
+                onUpdate(result.data);
+                onClose();
+            } else if (result.success) {
+                // Fallback if data is missing but success is true
                 onUpdate({
                     ...entry,
                     ...updates,
-                    // Ensure internal 'createdAt' matches 'date' for sorting/grouping in parent
                     createdAt: date.toISOString()
                 });
-                onClose(); // Close drawer immediately after save
+                onClose();
             } else {
                 Alert.alert("Error", "Failed to save changes.");
             }
@@ -338,6 +299,14 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                                     />
                                 </TouchableOpacity>
                                 <View style={styles.headerInfo}>
+                                    <Text style={styles.reviewDate}>
+                                        WATCHED ON {(() => {
+                                            if (!entry?.date) return 'UNKNOWN';
+                                            const [y, m, d] = entry.date.split('-');
+                                            const months = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+                                            return `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
+                                        })()}
+                                    </Text>
                                     <TouchableOpacity onPress={() => {
                                         onClose();
                                         router.push({
@@ -347,10 +316,10 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                                     }}>
                                         <Text style={styles.seriesName}>{entry.seriesName || entry.name}</Text>
                                     </TouchableOpacity>
-                                    {entry.seasonNumber && (
+                                    {(entry.seasonNumber !== undefined && entry.seasonNumber !== null) && (
                                         <View style={styles.seasonTag}>
                                             <Text style={styles.seasonText}>SEASON {entry.seasonNumber}</Text>
-                                            {entry.episodeNumber && <Text style={styles.seasonText}> • EP {entry.episodeNumber}</Text>}
+                                            {(entry.episodeNumber !== undefined && entry.episodeNumber !== null) && <Text style={styles.seasonText}> • EP {entry.episodeNumber}</Text>}
                                         </View>
                                     )}
 
@@ -424,12 +393,18 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                         {/* SAVE BUTTON */}
                         {isEditing && (
                             <View style={[styles.footer, { paddingBottom: 20 + insets.bottom }]}>
+                                {isFutureDate && (
+                                    <View style={styles.errorContainer}>
+                                        <AlertTriangle size={14} color="#ff4444" />
+                                        <Text style={styles.errorText}>Invalid Date: Cannot save future dates</Text>
+                                    </View>
+                                )}
                                 <TouchableOpacity
-                                    style={styles.saveBtn}
+                                    style={[styles.saveBtn, isFutureDate && styles.saveBtnDisabled]}
                                     onPress={handleSave}
-                                    disabled={isLoading}
+                                    disabled={isLoading || isFutureDate}
                                 >
-                                    {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>SAVE CHANGES</Text>}
+                                    {isLoading ? <ActivityIndicator color="#000" /> : <Text style={[styles.saveBtnText, isFutureDate && { color: '#FFF' }]}>{isFutureDate ? "INVALID DATE" : "SAVE CHANGES"}</Text>}
                                 </TouchableOpacity>
                             </View>
                         )}
@@ -475,6 +450,7 @@ const styles = StyleSheet.create({
     poster: { width: 80, height: 120, borderRadius: 6, backgroundColor: '#222' },
     headerInfo: { flex: 1, justifyContent: 'center' },
     seriesName: { color: '#FFF', fontSize: 22, fontWeight: '900', marginBottom: 4 },
+    reviewDate: { color: '#888', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginBottom: 4 },
     seasonTag: { flexDirection: 'row', backgroundColor: '#222', alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 8 },
     seasonText: { color: '#AAA', fontSize: 10, fontWeight: '800' },
     ratingRow: { flexDirection: 'row', gap: 4 },
@@ -508,5 +484,8 @@ const styles = StyleSheet.create({
 
     footer: { padding: 20, alignItems: 'center', marginTop: 10 },
     saveBtn: { backgroundColor: '#FFCC00', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 30, width: '100%', alignItems: 'center' },
-    saveBtnText: { color: '#000', fontWeight: '900', fontSize: 14, letterSpacing: 1 }
+    saveBtnDisabled: { backgroundColor: '#ff4444', opacity: 1 },
+    saveBtnText: { color: '#000', fontWeight: '900', fontSize: 14, letterSpacing: 1 },
+    errorContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, padding: 8, backgroundColor: 'rgba(255, 68, 68, 0.1)', borderRadius: 8 },
+    errorText: { color: '#ff4444', fontSize: 12, fontWeight: 'bold' }
 });

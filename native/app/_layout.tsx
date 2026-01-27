@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { NotificationToast } from '@/components/NotificationToast';
+import LoginScreen from './login';
 import { UpdateService, UpdateInfo } from '../src/services/UpdateService';
 import { UpdatePopup } from '../src/components/updates/UpdatePopup';
 import { MonthEndPopup } from '@/components/popups/MonthEndPopup';
@@ -15,7 +16,7 @@ import "../global.css";
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useEffect, useState, useRef } from 'react';
-import { useSegments, useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import * as Network from 'expo-network';
@@ -52,8 +53,8 @@ const CustomDarkTheme = {
 };
 
 function RootLayoutNav({ appReady }: { appReady: boolean }) {
-  const { currentUser, bootState, isSigningUp, isGuest } = useAuth();
-  const segments = useSegments();
+  const { currentUser, bootState, authReady, isSigningUp, isGuest } = useAuth();
+  const pathname = usePathname();
   const router = useRouter();
 
   const [toastVisible, setToastVisible] = useState(false);
@@ -144,49 +145,36 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   }, []);
 
 
-  const rootSegment = segments?.[0];
-  const isAtLogin = rootSegment === 'login';
-  const isAtTabs = rootSegment === '(tabs)';
-  const isAtRoot = !rootSegment;
+  const isAtLogin = pathname.includes('/login');
+  const isAtTabs = pathname.includes('(tabs)') || pathname === '/';
+  const isAtRoot = pathname === '/';
 
-  const isNavigating = useRef(false);
+
 
   useEffect(() => {
     // 1. Hide Native Splash ONLY once we are at the correct destination
-    // This prevents the "loading screen flash" after the splash disappears
+    // This ensures we never see a "flash" of the wrong screen during boot.
     const isReadyToHide = appReady && bootState !== 'BOOTING' && (
-      (bootState === 'AUTHENTICATED' && isAtTabs) ||
+      (bootState === 'AUTHENTICATED' && (isAtTabs || isAtRoot)) ||
       (bootState === 'UNAUTHENTICATED' && isAtLogin) ||
-      (isAtTabs && isGuest) // Guests can hide splash once they reach tabs
+      (isAtTabs && isGuest)
     );
 
     if (isReadyToHide) {
       SplashScreen.hideAsync().catch(() => { });
     }
 
-    // 2. Redirection Logic targeting SPECIFIC states
-    if (bootState === 'BOOTING') return;
+    // 2. EXTRA SAFETY: If we are still stuck on native splash after 10s of appReady, hide it.
+    const timer = setTimeout(() => {
+      if (appReady) SplashScreen.hideAsync().catch(() => { });
+    }, 10000);
 
-    // Reset navigation guard if we've arrived at the target
-    if (isAtLogin && bootState === 'UNAUTHENTICATED') isNavigating.current = false;
-    if (isAtTabs && (bootState === 'AUTHENTICATED' || isGuest)) isNavigating.current = false;
+    return () => clearTimeout(timer);
+  }, [bootState, appReady, isAtTabs, isAtLogin, isGuest, isAtRoot]);
 
-    if (isNavigating.current) return;
 
-    if (bootState === 'UNAUTHENTICATED' && !isSigningUp && !isGuest) {
-      if (isAtTabs || isAtRoot) {
-        console.log('[Root] Not authenticated. Redirecting to Login.');
-        isNavigating.current = true;
-        router.replace('/login');
-      }
-    } else if (bootState === 'AUTHENTICATED') {
-      if (isAtLogin || isAtRoot) {
-        console.log('[Root] Authenticated. Redirecting to Tabs.');
-        isNavigating.current = true;
-        router.replace('/(tabs)');
-      }
-    }
-  }, [bootState, rootSegment, appReady, isSigningUp]);
+
+  // 3. REMOVED: Redirection Logic (Replaced by Render-Gate below)
 
   // Handle Notifications Registration gets done in AuthContext now
   // We only show the "Notifications On" toast here if needed, but 
@@ -228,8 +216,9 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   }, []);
 
   // Branded Transition Screen: Prevent "Flash" of wrong screens while loading
-  // Show Logo + Spinner while BOOTING or FONTS not ready
-  if (!appReady || bootState === 'BOOTING') {
+  // 🛡️ STRICT AUTH GATE: Never mount the Stack until Firebase is ready
+  // We unblock as soon as authReady is true (Firebase finished initial check)
+  if (!appReady || !authReady) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
         <StatusBar style="light" />
@@ -244,6 +233,28 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
           isVisible={isOffline}
           onCancel={() => setIsOffline(false)}
         />
+      </View>
+    );
+  }
+
+  // 🛡️ RENDER GATE: Strict Logic
+  // If not authenticated, not guest, and not signing up -> SHOW LOGIN SCREEN DIRECTLY
+  // This bypasses navigation loops entirely.
+  const isAuthorized = currentUser || isGuest || isSigningUp;
+
+  if (!isAuthorized) {
+    // NOTE: We wrap in ThemeProvider/View to ensure styles/toasts work if needed,
+    // but essentially this replaces the Stack.
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <ThemeProvider value={CustomDarkTheme}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+            <Stack.Screen name="login" />
+          </Stack>
+        </ThemeProvider>
+        {/* Essential Global Toasts/Blockers can still live here if needed */}
+        <NetworkBlocker isVisible={isOffline} onCancel={() => setIsOffline(false)} />
+        <StatusBar style="light" />
       </View>
     );
   }
@@ -356,8 +367,10 @@ export default function RootLayout() {
 
     // Safety timeout for fonts (increased to 10s to be strictly safe but responsive)
     const t = setTimeout(() => {
-      console.log('Root: Font timeout reached');
-      setFontTimeout(true);
+      if (!fontsLoaded) {
+        console.log('Root: Font timeout reached');
+        setFontTimeout(true);
+      }
     }, 10000);
 
     // REMOVED individual failsafe. RootLayoutNav now handles it strictly based on bootState.

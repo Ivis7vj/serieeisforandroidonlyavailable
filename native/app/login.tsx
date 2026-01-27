@@ -675,7 +675,12 @@ export default function LandingScreen() {
                         {/* 1. LOGIN FORM */}
                         <View
                             style={styles.loginFormContainer}
-                            onLayout={(event) => setLoginHeight(event.nativeEvent.layout.height)}
+                            onLayout={(event) => {
+                                const h = event.nativeEvent.layout.height;
+                                if (Math.abs(loginHeight - h) > 1) {
+                                    setLoginHeight(h);
+                                }
+                            }}
                         >
                             <View style={styles.titleRow}>
                                 <Text style={styles.formTitle}>Sign in to Seriee</Text>
@@ -743,7 +748,12 @@ export default function LandingScreen() {
                         {/* 2. SIGNUP FORM */}
                         <View
                             style={styles.loginFormContainer}
-                            onLayout={(event) => setSignupHeight(event.nativeEvent.layout.height)}
+                            onLayout={(event) => {
+                                const h = event.nativeEvent.layout.height;
+                                if (Math.abs(signupHeight - h) > 1) {
+                                    setSignupHeight(h);
+                                }
+                            }}
                         >
                             <View style={styles.titleRow}>
                                 <Text style={styles.formTitle}>Create your account</Text>

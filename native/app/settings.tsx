@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Linki
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, LogOut, AlertTriangle, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, LogOut, AlertTriangle, Trash2, RefreshCw } from 'lucide-react-native';
+import { migrationService } from '@/utils/migration-service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth-context';
 import { Header } from '@/components/header';
@@ -40,6 +41,23 @@ export default function SettingsScreen() {
         weeklyPicks: false
     });
     const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    const handleSync = async () => {
+        if (!currentUser || isSyncing) return;
+        setIsSyncing(true);
+
+        const success = await migrationService.fixMissingMetadata(currentUser.uid, (msg) => {
+            // Optional: you can toast this msg
+        });
+
+        if (success) {
+            Alert.alert('Sync Complete', 'Your history has been updated. Please refresh your profile.');
+        } else {
+            Alert.alert('Sync Complete', 'No issues found or process finished.');
+        }
+        setIsSyncing(false);
+    };
 
     useEffect(() => {
         if (params.openReport === 'true') {
@@ -204,6 +222,27 @@ export default function SettingsScreen() {
                             }}>
                                 <Bell size={18} color="#FFCC00" />
                                 <Text style={[styles.btnText, { fontSize: 14, color: '#FFCC00' }]}>Test Notification (Real Data)</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    {/* Data Section */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionHeader}>DATA</Text>
+                        <View style={styles.btnGroup}>
+                            <Pressable
+                                style={[styles.actionBtn, isSyncing && { opacity: 0.5 }]}
+                                onPress={handleSync}
+                                disabled={isSyncing}
+                            >
+                                <RefreshCw size={22} color="#666" />
+                                <View style={styles.multilineBtnContent}>
+                                    <View style={styles.btnRow}>
+                                        <Text style={styles.btnText}>Sync History</Text>
+                                        {isSyncing && <ActivityIndicator size="small" color="#666" />}
+                                    </View>
+                                    <Text style={styles.btnSubtext}>Fix missing show names in your history</Text>
+                                </View>
                             </Pressable>
                         </View>
                     </View>

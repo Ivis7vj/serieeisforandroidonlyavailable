@@ -31,7 +31,7 @@ import { useToast } from '@/context/toast-context';
 
 const { width, height } = Dimensions.get('window');
 
-export function Header() {
+export const Header = React.memo(function HeaderImpl() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const navigation = useNavigation();
@@ -251,7 +251,7 @@ export function Header() {
             </Modal>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {

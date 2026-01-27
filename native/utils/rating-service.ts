@@ -2,24 +2,44 @@ import { supabase } from './supabase';
 import { db } from './firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { banService } from './ban-service';
+import { checkEpisodeProgress } from './completion-service';
 
-export const setEpisodeRating = async (userId: string, tmdbId: number, seasonNumber: number, episodeNumber: number, rating: number) => {
+export const setEpisodeRating = async (
+    userId: string,
+    tmdbId: number,
+    seasonNumber: number,
+    episodeNumber: number,
+    rating: number,
+    seriesName?: string,
+    posterPath?: string,
+    userName?: string
+) => {
     try {
         const { isRestricted } = await banService.checkActionRestriction(userId, 'RATE');
         if (isRestricted) return false;
 
+        const payload: any = {
+            user_id: userId,
+            tmdb_id: tmdbId,
+            season_number: seasonNumber,
+            episode_number: episodeNumber,
+            rating: rating,
+            updated_at: new Date().toISOString()
+        };
+
+        if (seriesName) payload.series_name = seriesName;
+        if (posterPath) payload.poster_path = posterPath;
+        if (userName) payload.user_name = userName; // Assuming column exists now or will exist
+
         const { error } = await supabase
             .from('episode_ratings')
-            .upsert({
-                user_id: userId,
-                tmdb_id: tmdbId,
-                season_number: seasonNumber,
-                episode_number: episodeNumber,
-                rating: rating,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id,tmdb_id,season_number,episode_number' });
+            .upsert(payload, { onConflict: 'user_id,tmdb_id,season_number,episode_number' });
 
         if (error) throw error;
+
+        // Trigger automated completion check
+        checkEpisodeProgress(userId, tmdbId, seasonNumber);
+
         return true;
     } catch (error) {
         console.error('[RatingService] Set Episode Rating Error:', error);
@@ -27,22 +47,40 @@ export const setEpisodeRating = async (userId: string, tmdbId: number, seasonNum
     }
 };
 
-export const setSeasonRating = async (userId: string, tmdbId: number, seasonNumber: number, rating: number) => {
+export const setSeasonRating = async (
+    userId: string,
+    tmdbId: number,
+    seasonNumber: number,
+    rating: number,
+    seriesName?: string,
+    posterPath?: string,
+    userName?: string
+) => {
     try {
         const { isRestricted } = await banService.checkActionRestriction(userId, 'RATE');
         if (isRestricted) return false;
 
+        const payload: any = {
+            user_id: userId,
+            tmdb_id: tmdbId,
+            season_number: seasonNumber,
+            rating: rating,
+            updated_at: new Date().toISOString()
+        };
+
+        if (seriesName) payload.series_name = seriesName;
+        if (posterPath) payload.poster_path = posterPath;
+        if (userName) payload.user_name = userName;
+
         const { error } = await supabase
             .from('season_ratings')
-            .upsert({
-                user_id: userId,
-                tmdb_id: tmdbId,
-                season_number: seasonNumber,
-                rating: rating,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id,tmdb_id,season_number' });
+            .upsert(payload, { onConflict: 'user_id,tmdb_id,season_number' });
 
         if (error) throw error;
+
+        // Trigger automated completion check (Real-time update)
+        checkEpisodeProgress(userId, tmdbId, seasonNumber);
+
         return true;
     } catch (error) {
         console.error('[RatingService] Set Season Rating Error:', error);

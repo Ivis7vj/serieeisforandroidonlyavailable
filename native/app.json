@@ -2,8 +2,8 @@
   "expo": {
     "name": "Seriee",
     "slug": "native",
-    "version": "3.0.1",
-    "runtimeVersion": "3.0.1",
+    "version": "3.0.3",
+    "runtimeVersion": "3.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "native",
@@ -34,7 +34,8 @@
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.WAKE_LOCK",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -44,6 +45,8 @@
     },
     "plugins": [
       "expo-router",
+      "expo-task-manager",
+      "expo-background-fetch",
       [
         "expo-splash-screen",
         {
@@ -85,6 +88,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4a04f081-719f-4e82-b91a-8bb523947627"
+      }
     }
   }
 }

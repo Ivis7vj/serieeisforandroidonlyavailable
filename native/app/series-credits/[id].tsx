@@ -80,28 +80,31 @@ export default function SeriesCreditsScreen() {
         fetchCredits();
     }, [id, season]);
 
-    const renderPerson = (person: Person) => (
-        <Pressable
-            key={person.id}
-            style={styles.personRow}
-            onPress={() => {
-                triggerSelection();
-                router.push(`/person/${person.id}`);
-            }}
-        >
-            <Image
-                source={{ uri: person.profile_path ? `https://image.tmdb.org/t/p/w200${person.profile_path}` : 'https://via.placeholder.com/150' }}
-                style={styles.avatar}
-                contentFit="cover"
-            />
-            <View style={styles.personInfo}>
-                <Text style={styles.name}>{person.name}</Text>
-                <Text style={styles.role} numberOfLines={2}>
-                    {person.roles.join(', ')}
-                </Text>
-            </View>
-        </Pressable>
-    );
+    const renderPerson = (person: Person) => {
+        if (!person || !person.id) return null;
+        return (
+            <Pressable
+                key={person.id}
+                style={styles.personRow}
+                onPress={() => {
+                    triggerSelection();
+                    router.push(`/person/${person.id}`);
+                }}
+            >
+                <Image
+                    source={{ uri: person.profile_path ? `https://image.tmdb.org/t/p/w200${person.profile_path}` : 'https://via.placeholder.com/150' }}
+                    style={styles.avatar}
+                    contentFit="cover"
+                />
+                <View style={styles.personInfo}>
+                    <Text style={styles.name}>{person.name || 'Unknown'}</Text>
+                    <Text style={styles.role} numberOfLines={2}>
+                        {(person.roles || []).join(', ') || 'N/A'}
+                    </Text>
+                </View>
+            </Pressable>
+        );
+    };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>

@@ -34,6 +34,7 @@ import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { triggerSelection } from '@/utils/haptics';
 import ReviewItem from '@/components/series/ReviewItem';
 import DiaryDetailDrawer from '@/components/diary/DiaryDetailDrawer';
+import { supabase } from '@/utils/supabase';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -76,7 +77,11 @@ const PosterGridItem = ({ item, onPress, showBadges = false, userPosters }: Post
             {showBadges && item.date && (
                 <View style={styles.diaryDateBadge}>
                     <Text style={styles.diaryDateText}>
-                        {new Date(item.date).getDate()} {new Date(item.date).toLocaleString('default', { month: 'short' })}
+                        {(() => {
+                            const [y, m, d] = item.date.split('-');
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
+                        })()}
                     </Text>
                 </View>
             )}
@@ -139,8 +144,8 @@ export default function ProfileSectionScreen() {
                 episodeNumber: item.episodeNumber,
                 isEpisode: !!item.isEpisode,
                 tmdbId: item.tmdbId,
-                date: item.createdAt,
-                createdAt: item.createdAt
+                date: item.createdAt || new Date().toISOString(),
+                createdAt: item.createdAt || new Date().toISOString()
             }));
 
             // Explicit Sort: Newest First
@@ -154,11 +159,51 @@ export default function ProfileSectionScreen() {
         }
     }, [targetUid, profileData?.userInfo]);
 
+
     useEffect(() => {
         if (sectionType === 'Reviews') {
             fetchProfileReviews();
+
+            // REAL-TIME SUBSCRIPTION
+            const channel = supabase.channel(`reviews-${targetUid}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'season_reviews', filter: `user_id=eq.${targetUid}` }, (payload) => handleRealtimeChange(payload, 'season'))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'episode_reviews', filter: `user_id=eq.${targetUid}` }, (payload) => handleRealtimeChange(payload, 'episode'))
+                .subscribe();
+
+            return () => {
+                supabase.removeChannel(channel);
+            };
         }
     }, [targetUid, sectionType, fetchProfileReviews]);
+
+    const handleRealtimeChange = (payload: any, type: 'season' | 'episode') => {
+        if (payload.eventType === 'INSERT') {
+            const newItem = normalizeReview(payload.new, type);
+            setReviews(prev => [newItem, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+            const updatedItem = normalizeReview(payload.new, type);
+            setReviews(prev => prev.map(r => r.id === updatedItem.id ? { ...r, ...updatedItem } : r));
+        } else if (payload.eventType === 'DELETE') {
+            setReviews(prev => prev.filter(r => r.id !== payload.old.id));
+        }
+    };
+
+    const normalizeReview = (r: any, type: 'season' | 'episode') => ({
+        id: r.id,
+        userId: r.user_id,
+        userName: r.user_name || 'User',
+        photoURL: r.photo_url,
+        rating: r.rating?.toString(),
+        review: r.review_text,
+        seriesName: r.series_name,
+        poster_path: r.poster_path,
+        seasonNumber: r.season_number,
+        episodeNumber: r.episode_number,
+        isEpisode: type === 'episode',
+        tmdbId: r.tmdb_id,
+        date: r.created_at || new Date().toISOString(),
+        createdAt: r.created_at || new Date().toISOString()
+    });
 
     const fetchUserList = async (uids: string[]) => {
         if (!uids || uids.length === 0) return;
@@ -219,10 +264,12 @@ export default function ProfileSectionScreen() {
         const sorted = [...profileData.diary].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         sorted.forEach(item => {
-            const date = new Date(item.date);
-            if (isNaN(date.getTime())) return;
+            if (!item.date) return;
+            const [y, m, d] = item.date.split('-');
+            if (!y || !m || !d) return;
 
-            const monthKey = `${date.toLocaleString('default', { month: 'long' })} ${date.getFullYear()}`;
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthKey = `${months[parseInt(m) - 1]} ${y}`;
             if (!groups[monthKey]) groups[monthKey] = [];
 
             // Grouping Logic: Unique per Series+Season in this Month
