@@ -255,6 +255,9 @@ export default function ReviewCreationScreen() {
         });
     };
 
+    // Event Emitter
+    const { reviewEvents } = require('@/utils/review-events');
+
     const handleDelete = async () => {
         setShowDeletePopup(false);
         setSubmitting(true);
@@ -262,17 +265,26 @@ export default function ReviewCreationScreen() {
 
         try {
             if (!currentUser) return;
+
+            // FAKE LOADING for UX
+            await new Promise(resolve => setTimeout(resolve, 800));
+
             let res;
             if (type === 'episode' && episodeNum !== undefined && existingId) {
                 await ratingService.deleteEpisodeRating(currentUser.uid, tmdbId, seasonNum, episodeNum);
-                res = await reviewService.deleteEpisodeReview(existingId);
+                // Use Composite Delete
+                res = await reviewService.deleteEpisodeReview(currentUser.uid, tmdbId, seasonNum, episodeNum);
             } else if (existingId) {
                 await ratingService.deleteSeasonRating(currentUser.uid, tmdbId, seasonNum);
-                res = await reviewService.deleteSeasonReview(existingId);
+                // Use Composite Delete
+                res = await reviewService.deleteSeasonReview(currentUser.uid, tmdbId, seasonNum);
             }
 
             if (res?.success) {
                 triggerSuccess();
+                // Emit Delete Event
+                reviewEvents.emitChange('delete', { id: existingId, tmdbId, seasonNum, episodeNum });
+
                 if (router.canDismiss()) router.dismiss();
                 else router.back();
             } else {
@@ -293,6 +305,9 @@ export default function ReviewCreationScreen() {
             setSubmitting(true);
             triggerImpact();
 
+            // FAKE LOADING for UX Satisfaction
+            await new Promise(resolve => setTimeout(resolve, 800));
+
             const userId = currentUser.uid;
             const userName = userData?.username || currentUser.displayName || 'Anonymous';
             const photoURL = userData?.photoURL || userData?.photo_url || currentUser.photoURL || '';
@@ -302,6 +317,8 @@ export default function ReviewCreationScreen() {
             const safeSeriesName = itemName || `Series ${tmdbId}`;
 
             let success = false;
+            let finalId = existingId;
+
             if (isExisting && existingId) {
                 if (type === 'episode' && episodeNum !== undefined) {
                     await ratingService.setEpisodeRating(userId, tmdbId, seasonNum, episodeNum, rating);
@@ -311,6 +328,9 @@ export default function ReviewCreationScreen() {
                     success = await reviewService.updateSeasonReview(userId, tmdbId, seasonNum, safeReviewText, rating, userName, photoURL, safeSeriesName, posterPath, existingId);
                 }
             } else {
+                // GENERATE NEW ID (if checking logic allows, otherwise rely on service to handle it)
+                // Since service doesn't return ID easily in current impl, we rely on refresh or optimistic update
+                // ideally we should get the ID back. For now, we emit what we have.
                 if (type === 'episode' && episodeNum !== undefined) {
                     await ratingService.setEpisodeRating(userId, tmdbId, seasonNum, episodeNum, rating);
                     success = await reviewService.createEpisodeReview(userId, tmdbId, seasonNum, episodeNum, safeReviewText, rating, userName, photoURL, safeSeriesName, posterPath, existingId);
@@ -328,7 +348,29 @@ export default function ReviewCreationScreen() {
                 } else if (type === 'episode' && episodeNum !== undefined) {
                     await watchlistService.removeFromWatchlist(userId, params.episodeId ? parseInt(params.episodeId as string) : 0);
                 }
+
                 await logActivity({ uid: userId, username: userName, photoURL: photoURL }, type === 'episode' ? 'rated_episode' : 'rated_season', { seriesId: tmdbId, seriesName: safeSeriesName, posterPath: posterPath, seasonNumber: seasonNum, episodeNumber: episodeNum, rating: rating, review: safeReviewText });
+
+                // PREPARE PAYLOAD FOR EMISSION
+                // We construct a 'best guess' object to update UI immediately
+                const eventPayload = {
+                    id: existingId || `temp-${Date.now()}`, // Fallback ID if new (Refresh will fix it eventually)
+                    userId,
+                    userName,
+                    photoURL,
+                    rating,
+                    review: safeReviewText,
+                    seriesName: safeSeriesName,
+                    poster_path: posterPath,
+                    seasonNumber: seasonNum,
+                    episodeNumber: episodeNum,
+                    isEpisode: type === 'episode',
+                    isSeason: type === 'season',
+                    tmdbId: tmdbId,
+                    createdAt: new Date().toISOString()
+                };
+
+                reviewEvents.emitChange(isExisting ? 'update' : 'create', eventPayload);
 
                 triggerSuccess();
                 runSuccessAnimation(() => {

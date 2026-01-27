@@ -97,7 +97,7 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
                     try {
                         // 1. Fetch Season Details to get the REAL Season Poster
                         // Use seriesId if available (fix from previous step), else fall back to tmdbId
-                        const sId = reviewData.seriesId || reviewData.tmdbId;
+                        const sId = reviewData.seriesId || reviewData.series_id || reviewData.tmdbId || reviewData.tmdb_id;
                         const seasonDetails = await tmdbApi.fetchDirect(`/tv/${sId}/season/${reviewData.seasonNumber}`);
 
                         if (seasonDetails?.poster_path) {
@@ -274,18 +274,18 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
 
         try {
             if (!currentUser) return;
-            const tmdbId = reviewData.tmdbId;
-            const seasonNum = reviewData.seasonNumber;
-            const episodeNum = reviewData.episodeNumber;
+            const tmdbId = reviewData.tmdbId || reviewData.tmdb_id;
+            const seasonNum = reviewData.seasonNumber || reviewData.season_number;
+            const episodeNum = reviewData.episodeNumber || reviewData.episode_number;
             const type = reviewData.isEpisode ? 'episode' : 'season';
 
             let res;
             if (type === 'episode' && episodeNum !== undefined && existingId) {
                 await ratingService.deleteEpisodeRating(currentUser.uid, tmdbId, seasonNum, episodeNum);
-                res = await reviewService.deleteEpisodeReview(existingId);
+                res = await reviewService.deleteEpisodeReview(currentUser.uid, tmdbId, seasonNum, episodeNum);
             } else if (existingId) {
                 await ratingService.deleteSeasonRating(currentUser.uid, tmdbId, seasonNum);
-                res = await reviewService.deleteSeasonReview(existingId);
+                res = await reviewService.deleteSeasonReview(currentUser.uid, tmdbId, seasonNum);
                 // Sync Diary (Delete)
                 await diaryService.deleteSeasonDiaryEntry(currentUser.uid, tmdbId, seasonNum);
             }
@@ -329,12 +329,12 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
             const userName = userData?.username || currentUser.displayName || 'Anonymous';
             const photoURL = userData?.photoURL || userData?.photo_url || currentUser.photoURL || '';
             const safeReviewText = reviewText.trim();
-            const tmdbId = reviewData.tmdbId;
-            const seasonNum = reviewData.seasonNumber;
-            const episodeNum = reviewData.episodeNumber;
+            const tmdbId = reviewData.tmdbId || reviewData.tmdb_id;
+            const seasonNum = reviewData.seasonNumber || reviewData.season_number;
+            const episodeNum = reviewData.episodeNumber || reviewData.episode_number;
             const type = reviewData.isEpisode ? 'episode' : 'season';
-            const itemName = reviewData.name;
-            const tmdbPosterPath = reviewData.poster_path;
+            const itemName = reviewData.name || reviewData.seriesName || reviewData.series_name;
+            const tmdbPosterPath = reviewData.poster_path || reviewData.posterPath;
 
             // RESOLVE THE FINAL POSTER PATH (Sync with DB)
             const posterPath = getResolvedPosterPath(

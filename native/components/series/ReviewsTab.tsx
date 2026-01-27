@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import ReviewItem from './ReviewItem';
+import { reviewEvents } from '@/utils/review-events'; // Import globally
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -20,6 +21,7 @@ interface Review {
     isEpisode?: boolean;
     isSeason?: boolean;
     likes?: string[];
+    tmdbId?: number; // Ensure interface knows about this
 }
 
 interface ReviewsTabProps {
@@ -34,31 +36,81 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({ reviews, currentUser, userData,
     const router = useRouter();
     const [filter, setFilter] = useState<'public' | 'friends' | 'you'>('public');
 
+    // LOCAL STATE FOR REALTIME UPDATES
+    const [internalReviews, setInternalReviews] = useState<Review[]>(reviews);
+
+    // 1. Sync with Parent Props (Source of Truth)
+    useEffect(() => {
+        setInternalReviews(reviews);
+    }, [reviews]);
+
+    // 2. Global Event Listener (Immediate Feedback)
+    useEffect(() => {
+        const onReviewChange = ({ type, data }: { type: string, data: any }) => {
+            // Filter by Series ID (Loose equality for string/number match)
+            if (data.tmdbId && String(data.tmdbId) !== String(seriesId)) return;
+
+            console.log(`[ReviewsTab] Realtime Update: ${type}`, data.id);
+
+            setInternalReviews(prev => {
+                let next = [...prev];
+
+                if (type === 'create') {
+                    // Check if already exists to prevent dupes
+                    if (!next.some(r => r.id === data.id)) {
+                        next = [data, ...next];
+                    }
+                } else if (type === 'update') {
+                    next = next.map(r =>
+                        (r.id === data.id || (
+                            r.userId === data.userId &&
+                            Number(r.seasonNumber) === Number(data.seasonNumber) &&
+                            Number(r.episodeNumber || 0) === Number(data.episodeNumber || 0)
+                        )) ? { ...r, ...data } : r
+                    );
+                } else if (type === 'delete') {
+                    next = next.filter(r =>
+                        r.id !== data.id &&
+                        !(r.userId === currentUser?.uid &&
+                            Number(r.seasonNumber) === Number(data.seasonNumber) &&
+                            Number(r.episodeNumber || 0) === Number(data.episodeNumber || 0))
+                    );
+                }
+                return next;
+            });
+        };
+
+        reviewEvents.on('review_change', onReviewChange);
+        return () => {
+            reviewEvents.off('review_change', onReviewChange);
+        };
+    }, [seriesId, currentUser, selectedSeason]);
+
     const changeFilter = (newFilter: 'public' | 'friends' | 'you') => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setFilter(newFilter);
     };
 
-    // 2. Categorize reviews
+    // 2. Categorize reviews (Use internalReviews instead of props.reviews)
     const isThisSeason = (r: any) =>
         Number(r.seasonNumber) === Number(selectedSeason) ||
         Number(r.seasonNumber) === 0 ||
         r.seasonNumber === null;
 
     // PUBLIC: Strictly season-specific OR Series level
-    const publicReviews = reviews.filter(r =>
+    const publicReviews = internalReviews.filter(r =>
         isThisSeason(r) &&
         r.userId !== currentUser?.uid &&
         !userData?.following?.includes(r.userId)
     );
 
     // FRIENDS & YOU: Strictly season-specific OR Series level
-    const friendsReviews = reviews.filter(r =>
+    const friendsReviews = internalReviews.filter(r =>
         isThisSeason(r) &&
         userData?.following?.includes(r.userId) &&
         r.userId !== currentUser?.uid
     );
-    const youReviews = reviews.filter(r =>
+    const youReviews = internalReviews.filter(r =>
         r.userId === currentUser?.uid &&
         isThisSeason(r)
     );

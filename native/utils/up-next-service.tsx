@@ -85,55 +85,85 @@ export const getUpNextData = async (userId: string): Promise<UpNextItem[]> => {
 
         // 3. For each series, fetch details and determine next episode
         const seriesIds = Object.keys(seriesMap).map(Number);
-
         const detailsResults = await Promise.all(
             seriesIds.map(id => tmdbApi.getSeriesDetails(id).catch(() => null))
         );
 
-        for (let i = 0; i < seriesIds.length; i++) {
-            const tmdbId = seriesIds[i];
+        // Pre-fetch season details we might need? 
+        // Or fetch on demand inside loop (slower but simpler logic). 
+        // We'll do parallel fetches for candidate seasons to keep it fast.
+
+        await Promise.all(seriesIds.map(async (tmdbId, i) => {
             const details = detailsResults[i];
             const last = seriesMap[tmdbId];
+            if (!details) return;
 
-            if (!details) continue;
+            const currentSeasonInfo = details.seasons?.find((s: any) => s.season_number === last.s);
+            if (!currentSeasonInfo) return; // Should not happen usually
 
-            const currentSeason = details.seasons?.find((s: any) => s.season_number === last.s);
-            if (!currentSeason) continue;
+            let candidateS = last.s;
+            let candidateE = last.e + 1;
 
-            let nextS = last.s;
-            let nextE = last.e + 1;
-            let isEligible = false;
-            let totalEps = currentSeason.episode_count;
-
-            if (nextE <= currentSeason.episode_count) {
-                isEligible = true;
-            } else {
-                const nextSeason = details.seasons?.find((s: any) => s.season_number === last.s + 1);
-                if (nextSeason && nextSeason.episode_count > 0) {
-                    nextS = last.s + 1;
-                    nextE = 1;
-                    isEligible = true;
-                    totalEps = nextSeason.episode_count;
+            // Check if we need to roll over to next season
+            if (candidateE > currentSeasonInfo.episode_count) {
+                const nextSeasonInfo = details.seasons?.find((s: any) => s.season_number === last.s + 1);
+                if (nextSeasonInfo && nextSeasonInfo.episode_count > 0) {
+                    candidateS = last.s + 1;
+                    candidateE = 1;
+                } else {
+                    // No next season or empty? Finished show.
+                    return;
                 }
             }
 
-            if (isEligible) {
+            // RE-VALIDATE CANDIDATE via TMDB Season Details (to check air_date)
+            try {
+                const sDetails = await tmdbApi.getSeasonDetails(tmdbId, candidateS);
+                if (!sDetails || !sDetails.episodes) return;
+
+                const nextEpData = sDetails.episodes.find((e: any) => e.episode_number === candidateE);
+
+                if (!nextEpData) return; // Does not exist
+
+                // AIR DATE CHECK
+                if (nextEpData.air_date) {
+                    const airDate = new Date(nextEpData.air_date);
+                    const now = new Date();
+                    // Optional: Allow "today" by resetting time
+                    now.setHours(0, 0, 0, 0);
+                    if (airDate > now) {
+                        // Future episode -> Do NOT show in Up Next? 
+                        // Or show with "Upcoming" tag? 
+                        // User request implies "randomly show s2 ep1 for non released... connect with tmdb... to check everytime"
+                        // So likely we should HIDE it if it's not out yet.
+                        return;
+                    }
+                } else {
+                    // No air date usually means unaired or unknown. Safest to hide or check status.
+                    // If show is 'Ended' and no air date, maybe valid? But unreleased is safer to hide.
+                    if (details.status === 'In Production' || details.status === 'Planned') return;
+                }
+
+                // If valid:
                 upNextList.push({
                     tmdbId: details.id,
                     seriesName: details.name,
-                    posterPath: details.poster_path,
-                    backdropPath: details.backdrop_path,
-                    seasonNumber: nextS,
-                    episodeNumber: nextE,
-                    nextEpisodeNumber: nextE,
-                    nextSeasonNumber: nextS,
-                    totalEpisodesInSeason: totalEps,
+                    posterPath: details.poster_path, // Fallback
+                    backdropPath: nextEpData.still_path || details.backdrop_path, // Prefer Episode Still!
+                    seasonNumber: candidateS,
+                    episodeNumber: candidateE,
+                    nextSeasonNumber: candidateS,
+                    nextEpisodeNumber: candidateE,
+                    totalEpisodesInSeason: sDetails.episodes.length,
                     lastWatchedEpisode: last.e,
                     lastWatchedSeason: last.s,
-                    lastActive: last.lastActive // Attach timestamp for sorting
+                    lastActive: last.lastActive
                 });
+
+            } catch (err) {
+                console.log(`[UpNext] Failed to validate S${candidateS} E${candidateE} for ${tmdbId}`, err);
             }
-        }
+        }));
 
         // 4. Sort by Recency (Newest First)
         upNextList.sort((a, b) => b.lastActive - a.lastActive);

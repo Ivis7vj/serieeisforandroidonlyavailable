@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Dimensions } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth-context';
 import { getUserReviews } from '@/utils/review-service';
 import ReviewItem from '@/components/series/ReviewItem';
+import { ActivityIndicator } from 'react-native';
 import DiaryDetailDrawer from '@/components/diary/DiaryDetailDrawer';
 import { MessageSquare, Star, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -47,9 +49,49 @@ export default function ReviewsScreen() {
         }
     }, [currentUser, userData]);
 
-    useEffect(() => {
-        fetchReviews();
-    }, [fetchReviews]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchReviews();
+        }, [fetchReviews])
+    );
+
+    // Initial and Real-time Effects
+    React.useEffect(() => {
+
+        // EVENT LISTENER
+        const { reviewEvents } = require('@/utils/review-events');
+        const onReviewChange = ({ type, data }: { type: string, data: any }) => {
+            console.log('[ReviewsTab] Event:', type);
+            if (type === 'create') {
+                setReviews(prev => [data, ...prev]);
+                fetchReviews(); // Force fresh fetch
+            } else if (type === 'update') {
+                setReviews(prev => prev.map(item =>
+                    (item.id === data.id || (
+                        item.userId === data.userId &&
+                        item.tmdbId === data.tmdbId &&
+                        item.seasonNumber === data.seasonNumber &&
+                        item.episodeNumber === data.episodeNumber // Optimistic match
+                    )) ? { ...item, ...data } : item
+                ));
+                fetchReviews(); // Force fresh fetch
+            } else if (type === 'delete') {
+                setReviews(prev => prev.filter(item =>
+                    item.id !== data.id &&
+                    !(item.userId === currentUser?.uid &&
+                        item.tmdbId === data.tmdbId &&
+                        item.seasonNumber === data.seasonNumber &&
+                        item.episodeNumber === data.episodeNumber)
+                ));
+                fetchReviews(); // Force fresh fetch
+            }
+        };
+
+        reviewEvents.on('review_change', onReviewChange);
+        return () => {
+            reviewEvents.off('review_change', onReviewChange);
+        };
+    }, [fetchReviews, currentUser]);
 
     const handleEntryUpdate = (updatedEntry: any) => {
         const newReviews = reviews.map(item =>
@@ -99,7 +141,7 @@ export default function ReviewsScreen() {
         <View style={styles.container}>
             {renderHeader()}
 
-            {loading ? (
+            {loading && reviews.length === 0 ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large" color="#FFCC00" />
                 </View>

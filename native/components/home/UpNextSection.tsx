@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/auth-context';
 import { getUpNextData, UpNextItem } from '@/utils/up-next-service';
@@ -30,54 +30,64 @@ export function UpNextSection({ }: UpNextSectionProps) {
 
 
 
+
+    const fetchUpNext = useCallback(async () => {
+        if (!currentUser) return;
+
+        // Don't set global loading here to avoid flicker if just refreshing silently?
+        // User wants "show logo spinner". So we SHOULD set loading if it's a focus refresh?
+        // But useFocusEffect calls this. let's handle loading state carefully.
+        // Actually, let's just fetch.
+        try {
+            setLoading(true);
+            const data = await getUpNextData(currentUser.uid);
+            setItems(data);
+            setLoading(false);
+
+            // ⚡ NATIVE WIDGET SYNC LOGIC ⚡
+            const widgetItems = data.slice(0, 5).map(item => ({
+                seriesName: item.seriesName,
+                episodeInfo: `S${item.nextSeasonNumber} • EP${item.nextEpisodeNumber}`,
+                backdropUri: item.backdropPath ? `https://image.tmdb.org/t/p/w500${item.backdropPath}` : '',
+                seriesId: item.tmdbId,
+                seasonNumber: item.nextSeasonNumber,
+                episodeNumber: item.nextEpisodeNumber
+            }));
+            UpNextWidgetSync.updateWidgetData(widgetItems);
+
+        } catch (error) {
+            console.error('Failed to fetch Up Next:', error);
+            setLoading(false);
+        }
+    }, [currentUser]);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchUpNext();
+        }, [fetchUpNext])
+    );
+
     useEffect(() => {
-        let isMounted = true;
-
-        const fetchUpNext = async () => {
-            if (!currentUser) {
-                if (isMounted) setLoading(false);
-                return;
-            }
-            try {
-                const data = await getUpNextData(currentUser.uid);
-                if (isMounted) setItems(data);
-
-                // ⚡ NATIVE WIDGET SYNC LOGIC ⚡
-                // Take top 5 items for the widget loop
-                const widgetItems = data.slice(0, 5).map(item => ({
-                    seriesName: item.seriesName,
-                    episodeInfo: `S${item.nextSeasonNumber} • EP${item.nextEpisodeNumber}`,
-                    backdropUri: item.backdropPath ? `https://image.tmdb.org/t/p/w500${item.backdropPath}` : '',
-                    seriesId: item.tmdbId,
-                    seasonNumber: item.nextSeasonNumber,
-                    episodeNumber: item.nextEpisodeNumber
-                }));
-
-                // Call Native Module directly with list
-                UpNextWidgetSync.updateWidgetData(widgetItems);
-
-            } catch (error) {
-                console.error('Failed to fetch Up Next:', error);
-            } finally {
-                if (isMounted) setLoading(false);
-            }
-        };
-
         fetchUpNext();
 
-        // Realtime Subscription
         const channel = supabase
             .channel(`watched_updates_${currentUser?.uid}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'watched_episodes', filter: `user_id=eq.${currentUser?.uid}` }, () => fetchUpNext())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'episode_ratings', filter: `user_id=eq.${currentUser?.uid}` }, () => fetchUpNext())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'episode_reviews', filter: `user_id=eq.${currentUser?.uid}` }, () => fetchUpNext())
             .subscribe();
 
-        return () => {
-            isMounted = false;
-            supabase.removeChannel(channel);
+        const { reviewEvents } = require('@/utils/review-events');
+        const onReviewChange = () => {
+            console.log('[UpNextSection] Event received, refreshing...');
+            fetchUpNext();
         };
-    }, [currentUser]);
+        reviewEvents.on('review_change', onReviewChange);
+
+        return () => {
+            supabase.removeChannel(channel);
+            reviewEvents.off('review_change', onReviewChange);
+        };
+    }, [fetchUpNext, currentUser]);
 
     if (!loading && items.length === 0) return null;
 
@@ -97,21 +107,9 @@ export function UpNextSection({ }: UpNextSectionProps) {
             </View>
 
             {loading ? (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                >
-                    {[1, 2].map(i => (
-                        <View key={i} style={[styles.card, { backgroundColor: '#111' }]}>
-                            <Skeleton width={POSTER_WIDTH} height={CARD_HEIGHT} borderRadius={12} />
-                            <View style={styles.infoSkeleton}>
-                                <Skeleton width={120} height={16} borderRadius={4} />
-                                <Skeleton width={80} height={14} borderRadius={4} />
-                            </View>
-                        </View>
-                    ))}
-                </ScrollView>
+                <View style={{ height: CARD_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#FFCC00" />
+                </View>
             ) : (
                 <ScrollView
                     horizontal

@@ -144,7 +144,7 @@ export default function ProfileScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            loadData(true);
+            loadData(false);
         }, [loadData])
     );
 

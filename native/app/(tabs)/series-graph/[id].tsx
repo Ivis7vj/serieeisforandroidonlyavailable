@@ -88,8 +88,14 @@ export default function GraphDetailScreen() {
                     watchedSet.add(`${w.season_number}-${w.episode_number}`);
                 });
 
+                const today = new Date();
                 const sortedSeasons = (seriesDetails.seasons || [])
-                    .filter((s: any) => s.season_number > 0)
+                    .filter((s: any) => {
+                        if (s.season_number === 0) return false;
+                        // STRICT: Exclude future seasons so the graph reflects currently aired content only
+                        if (s.air_date && new Date(s.air_date) > today) return false;
+                        return true;
+                    })
                     .sort((a: any, b: any) => a.season_number - b.season_number);
 
                 // Construct Logo (Same logic as index)

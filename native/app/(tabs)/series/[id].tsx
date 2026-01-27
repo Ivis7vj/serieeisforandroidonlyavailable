@@ -285,7 +285,7 @@ export default function SeriesDetailsScreen() {
     });
 
     // SKELETON ON FOCUS (Smooth Back Navigation)
-    const [isFirstLoad, setIsFirstLoad] = useState(true);
+    const isFirstLoad = useRef(true);
     const syncUser = useCallback(async (currentDetails: any) => {
         if (!currentUser || !currentDetails) return;
         // Watchlist
@@ -324,60 +324,68 @@ export default function SeriesDetailsScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            if (!isFirstLoad) {
-                // Check if we posted a review using Ref
-                const currentParams = paramsRef.current;
-                const action = (currentParams as any)?.action;
-                const isUpdate = (currentParams as any)?.isUpdate === 'true';
+            // ALWAYS REFRESH DATA ON FOCUS (RELOAD REQUIREMENT - V2)
+            // We removed !isFirstLoad check to ensure strict consistency on every navigation.
 
-                // RESET TO EPISODES TAB ON BACK NAVIGATION (General rule)
-                setActiveTab('Episodes');
+            // Check if we posted a review using Ref
+            const currentParams = paramsRef.current;
+            const action = (currentParams as any)?.action;
+            const isUpdate = (currentParams as any)?.isUpdate === 'true';
 
-                // REFRESH DATA ON FOCUS (RELOAD REQUIREMENT)
-                if (id) {
-                    // Re-sync reviews AND user status (Parallel Fetch)
-                    if (currentUser && details) {
-                        Promise.all([
-                            reviewService.getSeriesReviews(parseInt(id as string)),
-                            syncUser(details)
-                        ]).then(([revs, watchedSet]) => {
-                            setReviewsData(revs);
+            // RESET TO EPISODES TAB ON BACK NAVIGATION (General rule)
+            // Only if coming fresh (optional, but requested behavior implies "reset")
+            if (isFirstLoad.current) setActiveTab('Episodes');
 
-                            // AUTO-TRIGGER CELEB IF JUST RATED (User requirement)
-                            if (action === 'review_posted') {
-                                // 1. Check if Rated (Immediate)
-                                const isNowRated = revs.some((r: any) =>
-                                    r.userId === currentUser.uid &&
-                                    Number(r.seasonNumber) === Number(selectedSeason) &&
-                                    r.isSeason === true
-                                );
+            if (id) {
+                // Re-sync reviews AND user status (Parallel Fetch)
+                if (currentUser && details) {
+                    setLoading(true); // Optional: Trigger skeleton if we want "heavy" reload feel, or silent if false.
+                    // User asked for "reload the series details page everytime", so let's be explicit
+                    // But blocking UI completely every time might be jarring. Let's do silent refresh + loading state safely.
 
-                                // TRIGGER ONLY if Rated (AND NOT an update)
-                                if (isNowRated && !isUpdate) {
-                                    console.log("[Rating Sync] Season rated and NOT update! Triggering celebration.");
-                                    setShowCeleb(true);
-                                    setTimeout(() => {
-                                        scrollRef.current?.scrollTo({ y: 0, animated: true });
-                                    }, 500);
-                                } else if (isUpdate) {
-                                    console.log("[Rating Sync] isUpdate=true, skipping celebration.");
-                                }
+                    Promise.all([
+                        reviewService.getSeriesReviews(parseInt(id as string)),
+                        syncUser(details)
+                    ]).then(([revs, watchedSet]) => {
+                        setReviewsData(revs);
+
+                        // AUTO-TRIGGER CELEB IF JUST RATED (User requirement)
+                        if (action === 'review_posted') {
+                            // 1. Check if Rated (Immediate)
+                            const isNowRated = revs.some((r: any) =>
+                                r.userId === currentUser.uid &&
+                                Number(r.seasonNumber) === Number(selectedSeason) &&
+                                r.isSeason === true
+                            );
+
+                            // TRIGGER ONLY if Rated (AND NOT an update)
+                            if (isNowRated && !isUpdate) {
+                                console.log("[Rating Sync] Season rated and NOT update! Triggering celebration.");
+                                setShowCeleb(true);
+                                setTimeout(() => {
+                                    scrollRef.current?.scrollTo({ y: 0, animated: true });
+                                }, 500);
+                            } else if (isUpdate) {
+                                console.log("[Rating Sync] isUpdate=true, skipping celebration.");
                             }
-                        });
-                    }
-                }
-
-                // Hack to clear params so it doesn't persist forever
-                if (action === 'review_posted') {
-                    try {
-                        router.setParams({ action: undefined, scTitle: undefined, showHeaderTitle: undefined });
-                    } catch (e) {
-                        console.warn("Could not clear params", e);
-                    }
+                        }
+                    }).finally(() => {
+                        setLoading(false); // Only if we set it to true
+                    });
                 }
             }
-            setIsFirstLoad(false);
-        }, [isFirstLoad, id, currentUser, details, syncUser]) // Removed params from deps
+
+            // Hack to clear params so it doesn't persist forever
+            if (action === 'review_posted') {
+                try {
+                    router.setParams({ action: undefined, scTitle: undefined, showHeaderTitle: undefined });
+                } catch (e) {
+                    console.warn("Could not clear params", e);
+                }
+            }
+
+            isFirstLoad.current = false;
+        }, [id, currentUser, details, syncUser]) // Removed params from deps
     );
 
     // DAILY LIMIT LOGIC
@@ -487,7 +495,41 @@ export default function SeriesDetailsScreen() {
         if (details) {
             loadReviews();
         }
-    }, [id, details]);
+
+        // EVENT LISTENER
+        const { reviewEvents } = require('@/utils/review-events');
+        const onReviewChange = ({ type, data }: { type: string, data: any }) => {
+            // ROBUST CHECK: Handle both tmdbId and tmdb_id
+            const eventTmdbId = data.tmdbId || data.tmdb_id;
+            if (String(eventTmdbId) !== String(id)) return;
+
+            if (type === 'create') {
+                setReviewsData(prev => [data, ...prev]);
+                loadReviews(); // Force fresh fetch
+            } else if (type === 'update') {
+                setReviewsData(prev => prev.map(r =>
+                    (r.userId === data.userId &&
+                        Number(r.seasonNumber) === Number(data.seasonNumber) &&
+                        Number(r.episodeNumber || 0) === Number(data.episodeNumber || 0))
+                        ? { ...r, ...data }
+                        : r
+                ));
+                loadReviews(); // Force fresh fetch
+            } else if (type === 'delete') {
+                setReviewsData(prev => prev.filter(r =>
+                    !(r.userId === currentUser?.uid &&
+                        Number(r.seasonNumber) === Number(data.seasonNumber) &&
+                        Number(r.episodeNumber || 0) === Number(data.episodeNumber || 0))
+                ));
+                loadReviews(); // Force fresh fetch
+            }
+        };
+
+        reviewEvents.on('review_change', onReviewChange);
+        return () => {
+            reviewEvents.off('review_change', onReviewChange);
+        };
+    }, [id, details, currentUser]);
 
     // SYNC USER STATE
     useEffect(() => {
@@ -923,7 +965,7 @@ export default function SeriesDetailsScreen() {
     const seasonStats = useMemo(() => {
         if (!details) return { avg: "0.0", count: 0, distribution: Array(10).fill(0) };
         const relevantReviews = reviewsData.filter(r =>
-            Number(r.tmdbId) === Number(id) &&
+            (Number(r.tmdbId) === Number(id) || Number(r.tmdb_id) === Number(id)) && // ROBUST ID CHECK
             Number(r.seasonNumber) === Number(selectedSeason) &&
             (r.isEpisode || r.isSeason)
         );

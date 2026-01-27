@@ -414,6 +414,10 @@ export const createSeasonReview = async (
     }
 };
 
+// ------------------------------------------------------------------
+// UPDATE & DELETE: Using Composite Keys (User + Content) for Robustness
+// ------------------------------------------------------------------
+
 export const updateSeasonReview = async (
     userId: string,
     tmdbId: number,
@@ -424,7 +428,7 @@ export const updateSeasonReview = async (
     photoURL: string,
     seriesName: string,
     posterPath: string,
-    reviewId: string,
+    reviewId: string, // Kept for interface compat, but using composite keys
     createdAt?: string
 ) => {
     try {
@@ -438,20 +442,20 @@ export const updateSeasonReview = async (
             updated_at: new Date().toISOString()
         };
 
-        if (createdAt) {
-            payload.created_at = createdAt;
-        }
+        if (createdAt) payload.created_at = createdAt;
 
         const { error } = await supabase
             .from('season_reviews')
             .update(payload)
-            .eq('id', reviewId)
-            .eq('user_id', userId);
+            .match({ user_id: userId, tmdb_id: tmdbId, season_number: seasonNumber });
 
-        if (error) throw error;
+        if (error) {
+            console.error('[ReviewService] Supabase Update Error:', error);
+            throw error;
+        }
         return true;
     } catch (error) {
-        console.error('[ReviewService] Update Season Review Error:', error);
+        console.error('[ReviewService] Update Season Review Failed:', error);
         throw error;
     }
 };
@@ -481,20 +485,20 @@ export const updateEpisodeReview = async (
             updated_at: new Date().toISOString()
         };
 
-        if (createdAt) {
-            payload.created_at = createdAt;
-        }
+        if (createdAt) payload.created_at = createdAt;
 
         const { error } = await supabase
             .from('episode_reviews')
             .update(payload)
-            .eq('id', reviewId)
-            .eq('user_id', userId);
+            .match({ user_id: userId, tmdb_id: tmdbId, season_number: seasonNumber, episode_number: episodeNumber });
 
-        if (error) throw error;
+        if (error) {
+            console.error('[ReviewService] Supabase Update Error:', error);
+            throw error;
+        }
         return true;
     } catch (error) {
-        console.error('[ReviewService] Update Episode Review Error:', error);
+        console.error('[ReviewService] Update Episode Review Failed:', error);
         throw error;
     }
 };
@@ -622,13 +626,33 @@ export const getSeasonReviews = async (tmdbId: number, seasonNumber: number, kno
     }
 };
 
-export const deleteEpisodeReview = async (reviewId: string) => {
+// DELETE via Composite Keys
+// DELETE via Composite Keys
+export const deleteEpisodeReview = async (userId: string, tmdbId: number, seasonNumber: number, episodeNumber: number) => {
     try {
-        const { error } = await supabase
-            .from('episode_reviews')
-            .delete()
-            .eq('id', reviewId);
-        if (error) throw error;
+        if (!userId || !tmdbId || isNaN(tmdbId) || seasonNumber === undefined || isNaN(seasonNumber) || episodeNumber === undefined || isNaN(episodeNumber)) {
+            console.error('[ReviewService] Invalid Parameters for Episode Delete:', { userId, tmdbId, seasonNumber, episodeNumber });
+            return { success: false, error: 'Invalid Parameters' };
+        }
+
+        console.log(`[ReviewService] Deleting Episode Review & Rating: ${tmdbId} S${seasonNumber}E${episodeNumber}`);
+
+        // DELETE FROM BOTH TABLES PARALLEL
+        const [reviewDel, ratingDel] = await Promise.all([
+            supabase
+                .from('episode_reviews')
+                .delete()
+                .match({ user_id: userId, tmdb_id: tmdbId, season_number: seasonNumber, episode_number: episodeNumber }),
+            supabase
+                .from('episode_ratings')
+                .delete()
+                .match({ user_id: userId, tmdb_id: tmdbId, season_number: seasonNumber, episode_number: episodeNumber })
+        ]);
+
+        if (reviewDel.error) throw reviewDel.error;
+        // We generally treat rating deletion error as non-fatal if review is deleted, but good to log
+        if (ratingDel.error) console.warn('[ReviewService] Rating delete warning:', ratingDel.error);
+
         return { success: true };
     } catch (error) {
         console.error('[ReviewService] Delete Episode Review Error:', error);
@@ -636,13 +660,30 @@ export const deleteEpisodeReview = async (reviewId: string) => {
     }
 };
 
-export const deleteSeasonReview = async (reviewId: string) => {
+export const deleteSeasonReview = async (userId: string, tmdbId: number, seasonNumber: number) => {
     try {
-        const { error } = await supabase
-            .from('season_reviews')
-            .delete()
-            .eq('id', reviewId);
-        if (error) throw error;
+        if (!tmdbId || isNaN(tmdbId) || seasonNumber === undefined || isNaN(seasonNumber)) {
+            console.error('[ReviewService] Invalid Check for Delete:', { tmdbId, seasonNumber });
+            return { success: false, error: 'Invalid Parameters' };
+        }
+
+        console.log(`[ReviewService] Deleting Season Review & Rating: ${tmdbId} S${seasonNumber}`);
+
+        // DELETE FROM BOTH TABLES PARALLEL
+        const [reviewDel, ratingDel] = await Promise.all([
+            supabase
+                .from('season_reviews')
+                .delete()
+                .match({ user_id: userId, tmdb_id: tmdbId, season_number: seasonNumber }),
+            supabase
+                .from('season_ratings')
+                .delete()
+                .match({ user_id: userId, tmdb_id: tmdbId, season_number: seasonNumber })
+        ]);
+
+        if (reviewDel.error) throw reviewDel.error;
+        if (ratingDel.error) console.warn('[ReviewService] Rating delete warning:', ratingDel.error);
+
         return { success: true };
     } catch (error) {
         console.error('[ReviewService] Delete Season Review Error:', error);

@@ -12,6 +12,7 @@ import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { useAuth } from '@/context/auth-context';
 import * as diaryService from '@/utils/diary-service';
 import { useRouter } from 'expo-router';
+import { reviewEvents } from '@/utils/review-events';
 
 const { width, height } = Dimensions.get('window');
 
@@ -92,14 +93,21 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
             if (result.success && result.data) {
                 // Update local object with the exact backend replica
                 onUpdate(result.data);
+                // Ensure TMDB ID exists for listeners
+                const payload = { ...result.data, tmdbId: result.data.tmdbId || entry.tmdbId || entry.tmdb_id };
+                reviewEvents.emitChange('update', payload); // Emit Update
                 onClose();
             } else if (result.success) {
                 // Fallback if data is missing but success is true
-                onUpdate({
+                const updatedEntry = {
                     ...entry,
                     ...updates,
                     createdAt: date.toISOString()
-                });
+                };
+                onUpdate(updatedEntry);
+                // Ensure TMDB ID exists for listeners
+                const payload = { ...updatedEntry, tmdbId: updatedEntry.tmdbId || entry.tmdbId || entry.tmdb_id };
+                reviewEvents.emitChange('update', payload); // Emit Update
                 onClose();
             } else {
                 Alert.alert("Error", "Failed to save changes.");
@@ -126,18 +134,39 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                         setIsLoading(true);
                         const isEpisode = !!entry.episodeNumber || entry.isEpisode;
 
+                        const tmdbId = entry.tmdbId || entry.tmdb_id;
+                        const seasonNumber = entry.seasonNumber || entry.season_number;
+                        const episodeNumber = entry.episodeNumber || entry.episode_number;
+                        const userId = entry.userId || currentUser?.uid;
+
                         let res;
                         if (isEpisode) {
-                            res = await deleteEpisodeReview(entry.id);
+                            if (!tmdbId || seasonNumber === undefined || episodeNumber === undefined) {
+                                Alert.alert("Error", "Missing ID parameters for deletion.");
+                                setIsLoading(false);
+                                return;
+                            }
+                            res = await deleteEpisodeReview(userId, tmdbId, seasonNumber, episodeNumber);
                         } else {
-                            res = await deleteSeasonReview(entry.id);
+                            if (!tmdbId || seasonNumber === undefined) {
+                                Alert.alert("Error", "Missing ID parameters for deletion.");
+                                setIsLoading(false);
+                                return;
+                            }
+                            res = await deleteSeasonReview(userId, tmdbId, seasonNumber);
                             // Also delete from diary table
-                            await diaryService.deleteSeasonDiaryEntry(entry.userId, entry.tmdbId, entry.seasonNumber);
+                            await diaryService.deleteSeasonDiaryEntry(userId, tmdbId, seasonNumber);
                         }
 
                         setIsLoading(false);
                         if (res.success) {
                             onDelete(entry.id);
+                            reviewEvents.emitChange('delete', {
+                                id: entry.id,
+                                tmdbId,
+                                seasonNumber,
+                                episodeNumber
+                            });
                             onClose();
                         } else {
                             Alert.alert("Error", "Failed to delete.");

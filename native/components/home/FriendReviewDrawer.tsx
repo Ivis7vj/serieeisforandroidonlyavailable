@@ -40,6 +40,8 @@ interface FriendReviewDrawerProps {
         photo_url?: string;
         rating?: string | number;
         review_text?: string;
+        created_at?: string;
+        watched_at?: string;
     } | null;
 }
 
@@ -210,6 +212,17 @@ export function FriendReviewDrawer({ visible, onClose, activity }: FriendReviewD
                     </View>
                     <Text style={styles.ratingNum}>{ratingNum.toFixed(1)} Stars</Text>
 
+                    {/* DATE DISPLAY */}
+                    {(activity.created_at || activity.watched_at) && (
+                        <Text style={styles.dateLabel}>
+                            Rated on {new Date(activity.created_at || activity.watched_at || '').toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                            })}
+                        </Text>
+                    )}
+
                     {/* TEXT CONTENT */}
                     <Text style={styles.inputLabel}>REVIEW</Text>
                     <ScrollView style={styles.reviewContent} showsVerticalScrollIndicator={false}>
@@ -318,6 +331,15 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '500',
         marginTop: 2,
+    },
+    dateLabel: {
+        color: '#666',
+        fontSize: 12,
+        fontWeight: '600',
+        textAlign: 'center',
+        marginBottom: 10,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5
     },
     starsRow: {
         flexDirection: 'row',

@@ -152,25 +152,12 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
 
 
   useEffect(() => {
-    // 1. Hide Native Splash ONLY once we are at the correct destination
-    // This ensures we never see a "flash" of the wrong screen during boot.
-    const isReadyToHide = appReady && bootState !== 'BOOTING' && (
-      (bootState === 'AUTHENTICATED' && (isAtTabs || isAtRoot)) ||
-      (bootState === 'UNAUTHENTICATED' && isAtLogin) ||
-      (isAtTabs && isGuest)
-    );
-
-    if (isReadyToHide) {
+    // 1. Hide Native Splash IMMEDIATELY once fonts are loaded (appReady)
+    // We rely on the React ActivityIndicator to show "Loading" state if Auth is still pending.
+    if (appReady) {
       SplashScreen.hideAsync().catch(() => { });
     }
-
-    // 2. EXTRA SAFETY: If we are still stuck on native splash after 10s of appReady, hide it.
-    const timer = setTimeout(() => {
-      if (appReady) SplashScreen.hideAsync().catch(() => { });
-    }, 10000);
-
-    return () => clearTimeout(timer);
-  }, [bootState, appReady, isAtTabs, isAtLogin, isGuest, isAtRoot]);
+  }, [appReady]);
 
 
 

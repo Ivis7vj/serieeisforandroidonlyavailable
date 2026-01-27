@@ -180,7 +180,6 @@ export const likeSeason = async (userId: string, tmdbId: number, seasonNumber: n
             .insert({
                 user_id: userId,
                 tmdb_id: tmdbId,
-                series_id: tmdbId, // FIX: Trigger expects this field
                 item_type: 'SEASON',
                 season_number: seasonNumber,
                 created_at: new Date().toISOString()

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -14,8 +14,7 @@ import { supabase } from '@/utils/supabase';
 import { tmdbApi } from '@/utils/tmdb';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { BarChart3 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import PremiumLoader from '@/components/PremiumLoader';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const GAP = 10;
@@ -66,8 +65,11 @@ export default function GraphScreen() {
                     const regularSeasons = (details.seasons || []).filter((s: any) => s.season_number > 0);
 
                     // Filter seasons that have actually AIRED
+                    const now = new Date();
                     const airedSeasons = regularSeasons.filter((s: any) => {
-                        return s.air_date && s.air_date <= today && s.episode_count > 0;
+                        // Strict: Exclude future seasons
+                        if (s.air_date && new Date(s.air_date) > now) return false;
+                        return s.episode_count > 0;
                     });
 
                     if (airedSeasons.length === 0) continue;
@@ -107,9 +109,11 @@ export default function GraphScreen() {
         }
     };
 
-    useEffect(() => {
-        fetchCompletedSeries();
-    }, [currentUser]);
+    useFocusEffect(
+        useCallback(() => {
+            fetchCompletedSeries();
+        }, [currentUser])
+    );
 
     const handlePosterClick = (series: any) => {
         setSelectedSeries(series);
@@ -123,7 +127,13 @@ export default function GraphScreen() {
         }
     };
 
-    if (loading) return <PremiumLoader message="Loading library..." />;
+    if (loading) {
+        return (
+            <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#FFCC00" />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>

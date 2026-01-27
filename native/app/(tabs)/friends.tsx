@@ -376,7 +376,9 @@ export default function FriendsScreen() {
                         }
                         ListEmptyComponent={
                             feedLoading ? (
-                                <Skeleton />
+                                <View style={{ paddingTop: 50 }}>
+                                    <ActivityIndicator size="large" color="#FFCC00" />
+                                </View>
                             ) : (
                                 <View style={styles.centerParams}>
                                     <Text style={styles.hintText}>No activity yet.</Text>
