@@ -1,5 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, Redirect } from 'expo-router';
 import { NotificationToast } from '@/components/NotificationToast';
 import LoginScreen from './login';
 import { UpdateService, UpdateInfo } from '../src/services/UpdateService';
@@ -248,9 +248,18 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <ThemeProvider value={CustomDarkTheme}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
-            <Stack.Screen name="login" />
-          </Stack>
+          {/* 
+            Strict Redirection: 
+            If not authorized and not on login page, FORCE redirect to login.
+            This prevents 'blank screen' where we render a Stack for a route we shouldn't be on.
+          */}
+          {!isAtLogin ? (
+            <Redirect href="/login" />
+          ) : (
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000' } }}>
+              <Stack.Screen name="login" />
+            </Stack>
+          )}
         </ThemeProvider>
         {/* Essential Global Toasts/Blockers can still live here if needed */}
         <NetworkBlocker isVisible={isOffline} onCancel={() => setIsOffline(false)} />
@@ -334,7 +343,8 @@ export default function RootLayout() {
 
 
 
-  // Emergency safety for fonts - if fonts don't load in 4s, we show the UI anyway
+  // Emergency safety for fonts - if fonts don't load in 2s (was 10s), we show the UI anyway
+  // This fixes the "Lag at splash screen" issue. 
   const [fontTimeout, setFontTimeout] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
@@ -365,13 +375,13 @@ export default function RootLayout() {
   useEffect(() => {
     console.log('Root: Layout mounted');
 
-    // Safety timeout for fonts (increased to 10s to be strictly safe but responsive)
+    // Safety timeout for fonts - Reduced to 2000ms to prevent splash lag
     const t = setTimeout(() => {
       if (!fontsLoaded) {
-        console.log('Root: Font timeout reached');
+        console.log('Root: Font timeout reached (2s)');
         setFontTimeout(true);
       }
-    }, 10000);
+    }, 2000);
 
     // REMOVED individual failsafe. RootLayoutNav now handles it strictly based on bootState.
     // This satisfies "dont show until homepage loaded".
@@ -393,22 +403,24 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <OnboardingProvider>
+      <GlobalErrorBoundary>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <OnboardingProvider>
 
-              <RootLayoutNav appReady={appReady} />
-              {updateInfo && (
-                <UpdatePopup
-                  updateInfo={updateInfo}
-                  onDismiss={() => setUpdateInfo(null)}
-                />
-              )}
-            </OnboardingProvider>
-          </ToastProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
+                <RootLayoutNav appReady={appReady} />
+                {updateInfo && (
+                  <UpdatePopup
+                    updateInfo={updateInfo}
+                    onDismiss={() => setUpdateInfo(null)}
+                  />
+                )}
+              </OnboardingProvider>
+            </ToastProvider>
+          </AuthProvider>
+        </SafeAreaProvider>
+      </GlobalErrorBoundary>
     </GestureHandlerRootView>
   );
 }
