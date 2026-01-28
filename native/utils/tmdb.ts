@@ -70,7 +70,7 @@ export const tmdbApi = {
     },
     getSeriesDetails: async (id: number | string, forceDirect: boolean = false) => {
         if (sessionCache.series[id] && !forceDirect) return sessionCache.series[id];
-        const data = await fetchDirect(`/tv/${id}`, '&append_to_response=images,credits,videos,translations,watch/providers,external_ids,keywords,content_ratings');
+        const data = await fetchDirect(`/tv/${id}`, '&append_to_response=images,credits,videos,translations,watch/providers,external_ids,keywords,content_ratings&include_image_language=en,null');
         if (data) sessionCache.series[id] = data;
         return data;
     },
@@ -80,7 +80,7 @@ export const tmdbApi = {
     getSeasonDetails: async (id: number | string, season: number, forceDirect: boolean = false) => {
         const cacheKey = `${id}-${season}`;
         if (sessionCache.seasons[cacheKey] && !forceDirect) return sessionCache.seasons[cacheKey];
-        const data = await fetchDirect(`/tv/${id}/season/${season}`);
+        const data = await fetchDirect(`/tv/${id}/season/${season}`, '&append_to_response=images&include_image_language=en,null');
         if (data) sessionCache.seasons[cacheKey] = data;
         return data;
     },

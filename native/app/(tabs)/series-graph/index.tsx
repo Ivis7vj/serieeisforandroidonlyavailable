@@ -13,7 +13,7 @@ import { useAuth } from '@/context/auth-context';
 import { supabase } from '@/utils/supabase';
 import { tmdbApi } from '@/utils/tmdb';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
-import { BarChart3 } from 'lucide-react-native';
+import { BarChart3, X } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -178,19 +178,31 @@ export default function GraphScreen() {
                 )}
             </ScrollView>
 
+
+
             {showConfirm && selectedSeries && (
                 <View style={styles.modalOverlay}>
                     <View style={styles.confirmModal}>
+                        <Pressable
+                            style={styles.closeBtn}
+                            onPress={() => setShowConfirm(false)}
+                        >
+                            <X size={20} color="#000" />
+                        </Pressable>
+
                         <View style={styles.modalText}>
-                            <Text style={styles.modalHeader}>GENERATE GRAPH?</Text>
-                            <Text style={styles.modalSeriesName}>{selectedSeries.name}</Text>
+                            <Text style={styles.modalHeader}>Series Graph</Text>
+                            <Text style={styles.modalBody}>
+                                Did you want to generate the graph for this "{selectedSeries.name}"?
+                            </Text>
                         </View>
+
                         <View style={styles.modalActions}>
-                            <Pressable style={styles.generateBtn} onPress={handleGenerate}>
-                                <Text style={styles.generateBtnText}>GENERATE</Text>
+                            <Pressable style={styles.actionBtn} onPress={() => setShowConfirm(false)}>
+                                <Text style={styles.actionBtnText}>Cancel</Text>
                             </Pressable>
-                            <Pressable style={styles.cancelBtn} onPress={() => setShowConfirm(false)}>
-                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                            <Pressable style={styles.actionBtn} onPress={handleGenerate}>
+                                <Text style={styles.actionBtnText}>Generate</Text>
                             </Pressable>
                         </View>
                     </View>
@@ -201,6 +213,7 @@ export default function GraphScreen() {
 }
 
 const styles = StyleSheet.create({
+    // ... (previous styles remain unchanged until modal styles)
     container: {
         flex: 1,
         backgroundColor: '#000',
@@ -281,73 +294,67 @@ const styles = StyleSheet.create({
     // Modal
     modalOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.8)',
+        backgroundColor: 'rgba(0,0,0,0.6)', // Slightly lighter overlay to contrast with yellow
         zIndex: 5000,
         justifyContent: 'center',
         alignItems: 'center',
     },
     confirmModal: {
-        backgroundColor: '#000',
-        width: 300,
-        borderWidth: 1,
-        borderColor: '#222',
-        padding: 30,
+        backgroundColor: '#FFC107', // Dark Yellow
+        width: 340, // Wider / Landscape
+        borderRadius: 20, // Rounded like the image
+        padding: 16, // Compact Padding
         alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
+        shadowOpacity: 0.3, // Soft shadow
         shadowRadius: 20,
         elevation: 10,
+        position: 'relative'
+    },
+    closeBtn: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        padding: 4,
+        zIndex: 10
     },
     modalText: {
-        marginBottom: 25,
-        alignItems: 'center'
+        marginBottom: 16, // Compact spacing
+        alignItems: 'center',
+        marginTop: 5 // Compact top margin
     },
     modalHeader: {
-        color: '#888',
-        fontSize: 14,
-        fontWeight: '500',
-        letterSpacing: 1,
+        color: '#000',
+        fontSize: 18,
+        fontFamily: 'ArchivoBlack-Regular',
         marginBottom: 8,
-        textTransform: 'uppercase'
+        letterSpacing: 0.5
     },
-    modalSeriesName: {
-        color: '#fff',
-        fontSize: 24, // 1.6rem
-        fontWeight: '800',
-        lineHeight: 28,
-        textAlign: 'center'
+    modalBody: {
+        color: '#444',
+        fontSize: 15,
+        fontFamily: 'ArchivoBlack-Regular',
+        textAlign: 'center',
+        lineHeight: 22
     },
     modalActions: {
         width: '100%',
-        gap: 15
+        flexDirection: 'row',
+        gap: 12,
+        justifyContent: 'space-between'
     },
-    generateBtn: {
-        width: '100%',
-        padding: 16,
-        backgroundColor: '#fff',
+    actionBtn: {
+        flex: 1,
+        backgroundColor: '#111', // Dark button
+        paddingVertical: 10, // Compact button height
+        borderRadius: 30, // Pill shape like image
         alignItems: 'center',
         justifyContent: 'center',
     },
-    generateBtnText: {
-        color: '#000',
-        fontSize: 16,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5
-    },
-    cancelBtn: {
-        width: '100%',
-        padding: 16,
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: '#333',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    cancelBtnText: {
-        color: '#666',
-        fontSize: 16,
-        fontWeight: '700'
+    actionBtnText: {
+        color: '#FFF', // White text
+        fontSize: 14,
+        fontFamily: 'ArchivoBlack-Regular',
     }
 });

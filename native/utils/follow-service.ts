@@ -16,7 +16,9 @@ export const followUser = async (currentUserId: string, targetUserId: string) =>
         });
 
         await updateDoc(targetUserRef, {
-            followers: arrayUnion(currentUserId)
+            followers: arrayUnion(currentUserId),
+            hasUnseenFollowerDot: true,
+            hasUnseenFollowerStat: true
         });
 
         // 2. Notification Logic (Aggregated)

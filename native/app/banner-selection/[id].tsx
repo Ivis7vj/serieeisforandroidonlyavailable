@@ -48,23 +48,15 @@ export default function BannerSelectionScreen() {
         }
     };
 
-    const handleSelectBanner = async (backdropPath: string) => {
-        if (!currentUser || updating) return;
+    const handleSelectBanner = (backdropPath: string) => {
+        if (!currentUser) return;
 
-        setUpdating(true);
-        try {
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-                bannerBackdropPath: backdropPath,
-                bannerUpdatedAt: serverTimestamp()
-            });
-
-            await refreshUserData();
-            router.replace('/(tabs)/profile');
-        } catch (error) {
-            console.error(error);
-            Alert.alert("Error", "Failed to update banner.");
-            setUpdating(false);
-        }
+        // Navigate to manual adjustment
+        const fullUri = `https://image.tmdb.org/t/p/w1280${backdropPath}`;
+        router.push({
+            pathname: '/banner-adjust',
+            params: { imageUri: fullUri }
+        });
     };
 
     const renderItem = ({ item }: { item: any }) => {

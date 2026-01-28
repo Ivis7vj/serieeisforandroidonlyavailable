@@ -224,7 +224,8 @@ export default function ReviewCreationScreen() {
             } : null,
             isEpisodes: type === 'episode',
             seasonCompleted: false,
-            resolvedPoster: posterPath
+            resolvedPoster: posterPath,
+            seasonNumber: seasonNum
         };
         router.push({
             pathname: '/share-sticker',

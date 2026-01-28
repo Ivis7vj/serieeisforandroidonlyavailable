@@ -187,6 +187,24 @@ export default function ActivityRenderer({ activity, onReviewClick, variant = 'f
     }
 
     // Default to Friend Card Style
+    const getActionText = () => {
+        switch (activity.type) {
+            case 'watchlist_add': return 'added to watchlist';
+            case 'watched_episode': return 'watched';
+            case 'watched_season': return 'watched';
+            case 'completed_season': return 'finished';
+            case 'rated_season': return 'rated';
+            case 'rated_episode': return 'rated';
+            case 'liked_series':
+            case 'liked_season': return 'liked';
+            case 'poster_updated': return activity.customText || 'chose a poster for';
+            default: return 'watched';
+        }
+    };
+
+    const actionText = getActionText();
+    const isWatchlist = activity.type === 'watchlist_add';
+
     return (
         <View style={styles.card}>
             {/* Poster - Left Side */}
@@ -218,9 +236,12 @@ export default function ActivityRenderer({ activity, onReviewClick, variant = 'f
                             style={styles.avatar}
                             contentFit="cover"
                         />
-                        <Text style={styles.username} numberOfLines={1}>
-                            {activity.username || activity.userName}
-                        </Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.username} numberOfLines={1}>
+                                {activity.username || activity.userName}
+                            </Text>
+                            <Text style={styles.actionText}>{actionText}</Text>
+                        </View>
                     </Pressable>
                     <Text style={styles.time}>{formatTimeAgo(activity.createdAt)}</Text>
                 </View>
@@ -232,23 +253,28 @@ export default function ActivityRenderer({ activity, onReviewClick, variant = 'f
                         {activity.seasonNumber && (
                             <Text style={styles.seasonText}> S{activity.seasonNumber}</Text>
                         )}
+                        {activity.episodeNumber && (
+                            <Text style={styles.seasonText}> E{activity.episodeNumber}</Text>
+                        )}
                     </Text>
-                    <View style={styles.ratingContainer}>
-                        {[...Array(5)].map((_, i) => (
-                            <Star
-                                key={i}
-                                size={12}
-                                fill={i < rating ? "#FFD600" : "transparent"}
-                                color={i < rating ? "#FFD600" : "#444"}
-                            />
-                        ))}
-                    </View>
+                    {!isWatchlist && (
+                        <View style={styles.ratingContainer}>
+                            {[...Array(5)].map((_, i) => (
+                                <Star
+                                    key={i}
+                                    size={12}
+                                    fill={i < rating ? "#FFD600" : "transparent"}
+                                    color={i < rating ? "#FFD600" : "#444"}
+                                />
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {/* Review Body */}
                 <Pressable onPress={() => onReviewClick?.(activity)}>
-                    <Text style={styles.reviewBody} numberOfLines={4}>
-                        {activity.review || <Text style={styles.italic}>Rated {rating} stars</Text>}
+                    <Text style={styles.reviewBody} numberOfLines={3}>
+                        {activity.review || (!isWatchlist && rating > 0 && <Text style={styles.italic}>Rated {rating} stars</Text>)}
                     </Text>
                 </Pressable>
 
@@ -300,6 +326,11 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 14,
         fontWeight: 'bold',
+    },
+    actionText: {
+        color: '#888',
+        fontSize: 11,
+        marginTop: -2
     },
     time: {
         color: '#888',

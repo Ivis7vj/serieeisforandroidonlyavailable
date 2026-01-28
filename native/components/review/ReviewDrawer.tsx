@@ -88,8 +88,10 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
             setExistingId(reviewData.id || null);
             setIsEditing(!hasId);
             setLoading(false);
+            setLoading(false);
             setSubmitting(false); // FIXED: Stuck loading bug
             setEpisodeStill(null);
+            setShowDeletePopup(false); // FIXED: Reset popup state on load
 
             // Fetch accurate season poster (Primary) and episode still (Fallback/Extra)
             if (reviewData.isEpisode) {
@@ -127,6 +129,9 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
             }).start();
         } else {
             panY.setValue(SCREEN_HEIGHT);
+            // Cleanup on close to ensure next open is clean
+            setShowDeletePopup(false);
+            setShowMenu(false);
         }
     }, [visible, reviewData?.id, reviewData?.uid]);
 
@@ -657,14 +662,24 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
                 {showDeletePopup && (
                     <View style={Styles.popupOverlay}>
                         <View style={Styles.deletePopup}>
-                            <Text style={Styles.popupTitle}>Delete this review permanently?</Text>
-                            <Text style={Styles.popupDesc}>this action cant be restored</Text>
+                            <Pressable
+                                style={Styles.closeBtn}
+                                onPress={() => setShowDeletePopup(false)}
+                            >
+                                <X size={20} color="#000" />
+                            </Pressable>
+
+                            <View style={Styles.popupTextContainer}>
+                                <Text style={Styles.popupTitle}>Delete this review permanently?</Text>
+                                <Text style={Styles.popupDesc}>this action cant be restored</Text>
+                            </View>
+
                             <View style={Styles.popupActions}>
-                                <TouchableOpacity style={Styles.popupBtnCancel} onPress={() => setShowDeletePopup(false)}>
+                                <TouchableOpacity style={Styles.popupBtn} onPress={() => setShowDeletePopup(false)}>
                                     <Text style={Styles.popupBtnText}>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={Styles.popupBtnDelete} onPress={handleDelete}>
-                                    <Text style={[Styles.popupBtnText, { color: '#FFD600' }]}>Delete</Text>
+                                <TouchableOpacity style={Styles.popupBtn} onPress={handleDelete}>
+                                    <Text style={Styles.popupBtnText}>Delete</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -804,64 +819,68 @@ const Styles = StyleSheet.create({
     },
     popupOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.85)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 200
     },
     deletePopup: {
-        backgroundColor: '#121212',
-        width: '80%',
-        maxWidth: 300,
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        borderRadius: 16,
+        backgroundColor: '#FFC107', // Dark Yellow
+        width: 340, // Wider / Landscape
+        borderRadius: 20,
+        padding: 16, // Compact Padding
         alignItems: 'center',
         position: 'relative',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 15,
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
         elevation: 10
     },
+    closeBtn: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        padding: 4,
+        zIndex: 10
+    },
+    popupTextContainer: {
+        marginBottom: 16,
+        alignItems: 'center',
+        marginTop: 5
+    },
     popupTitle: {
-        color: '#FFF',
+        color: '#000',
         fontSize: 18,
-        fontWeight: '800',
-        marginBottom: 6,
-        textAlign: 'center'
+        fontFamily: 'ArchivoBlack-Regular',
+        marginBottom: 8,
+        textAlign: 'center',
+        letterSpacing: 0.5
     },
     popupDesc: {
-        color: '#888',
-        fontSize: 12,
-        lineHeight: 16,
+        color: '#444',
+        fontSize: 15,
+        fontFamily: 'ArchivoBlack-Regular',
         textAlign: 'center',
-        marginBottom: 20,
-        paddingHorizontal: 10
+        lineHeight: 22
     },
     popupActions: {
         width: '100%',
         gap: 12,
         flexDirection: 'row'
     },
-    popupBtnDelete: {
+    popupBtn: {
         flex: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingVertical: 15,
-        borderRadius: 8,
-        alignItems: 'center'
-    },
-    popupBtnCancel: {
-        flex: 1,
-        backgroundColor: '#333',
-        paddingVertical: 15,
-        borderRadius: 8,
-        alignItems: 'center'
+        backgroundColor: '#111', // Dark button
+        paddingVertical: 10, // Compact height
+        borderRadius: 30, // Pill shape
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     popupBtnText: {
         color: '#FFF',
-        fontSize: 16,
-        fontWeight: '600'
+        fontSize: 14,
+        fontFamily: 'ArchivoBlack-Regular'
     }
 });
 

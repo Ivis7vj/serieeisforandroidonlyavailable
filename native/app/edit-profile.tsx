@@ -30,9 +30,7 @@ export default function EditProfileScreen() {
     const [originalImage, setOriginalImage] = useState<string | null>(null);
     // const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
-    const addLog = (msg: string) => {
-        console.log(`[UI_LOG] ${msg}`);
-    };
+
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -63,7 +61,6 @@ export default function EditProfileScreen() {
     // ... (inside component)
 
     const handlePickImage = async () => {
-        console.log("[Edit Profile] Picking image...");
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -72,11 +69,9 @@ export default function EditProfileScreen() {
             base64: true,
         });
 
-        console.log("[Edit Profile] Picker Result:", result.canceled ? "Canceled" : "Selected");
+
         if (!result.canceled) {
-            console.log("[Edit Profile] URI:", result.assets[0].uri);
-            console.log("[Edit Profile] Base64 Present:", !!result.assets[0].base64);
-            console.log("[Edit Profile] Base64 Length:", result.assets[0].base64?.length);
+
 
             setProfileImage(result.assets[0].uri);
             setProfileBase64(result.assets[0].base64 || null);
@@ -88,32 +83,32 @@ export default function EditProfileScreen() {
     const { showToast } = useToast();
 
     const handleSave = async () => {
-        addLog("Handle Save Triggered");
         if (!currentUser) return;
         if (!username.trim()) {
-            showToast({ message: "Username cannot be empty", type: 'error' });
+            showToast({ message: "Username cannot be empty", type: 'error', variant: 'profile' });
             return;
         }
 
         setSaving(true);
         try {
-            addLog("Starting Save Process...");
+
 
             // 1. Check Image Size
             if (profileBase64 && profileImage !== originalImage) {
                 const sizeInBytes = profileBase64.length * 0.75; // Approx
                 const sizeInMB = sizeInBytes / (1024 * 1024);
                 const kbSize = sizeInBytes / 1024;
-                addLog(`Approx Image Size: ${sizeInMB.toFixed(2)} MB (${kbSize.toFixed(0)} KB)`);
+
 
                 if (sizeInMB > 0.95) { // Safety margin for Firestore 1MB limit
                     setSaving(false);
                     showToast({
                         message: "Image too large (>1MB). Please choose a smaller one.",
                         type: 'error',
-                        duration: 5000
+                        duration: 5000,
+                        variant: 'profile'
                     });
-                    addLog("Error: Image Too Large");
+
                     return;
                 }
             }
@@ -125,19 +120,15 @@ export default function EditProfileScreen() {
             let finalPhotoUrl = profileImage;
 
             if (profileBase64 && profileImage !== originalImage) {
-                addLog("Uploading new photo (Web Logic)...");
                 finalPhotoUrl = await userService.updateProfilePhoto(currentUser.uid, profileBase64);
                 photoUpdated = true;
-                addLog("Photo Upload Success");
-            } else {
-                addLog("No new photo to upload.");
             }
 
             // 3. Update Metadata
             const safeUsername = validation.sanitizeText(username);
             const safeBio = validation.sanitizeText(bio);
 
-            addLog("Updating User Metadata...");
+
 
             const updatePayload: any = {
                 username: safeUsername,
@@ -151,16 +142,16 @@ export default function EditProfileScreen() {
             }
 
             await updateDoc(userRef, updatePayload);
-            addLog("Metadata Update Success");
 
-            showToast({ message: "Profile updated successfully!", type: 'success' });
+
+            showToast({ message: "Profile updated successfully!", type: 'success', variant: 'profile' });
             router.back();
         } catch (error: any) {
             setSaving(false);
             const errorMsg = error.message || JSON.stringify(error);
-            addLog(`ERROR: ${errorMsg}`);
+
             console.error("[Edit Profile] Update Failed:", error);
-            showToast({ message: `Upload Failed: ${errorMsg}`, type: 'error' });
+            showToast({ message: `Upload Failed: ${errorMsg}`, type: 'error', variant: 'profile' });
         }
         setSaving(false);
     };
