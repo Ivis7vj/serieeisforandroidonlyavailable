@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInRight } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { ArrowLeft, Star, Share } from 'lucide-react-native';
+import { ArrowLeft, Star, Share, X, AlertCircle } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -679,18 +679,23 @@ export default function ProfileSectionScreen() {
         return profileData.diary.filter((item: any) => {
             const d = new Date(item.date);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-        }).map((item: any) => ({
-            ...item,
-            resolvedPoster: getResolvedPosterUrl(
-                String(item.tmdbId),
-                item.posterPath,
-                profileData.userPosters,
-                'w342',
-                item.seasonNumber,
-                true,
-                true
-            )
-        }));
+        }).map((item: any) => {
+            // Robustly resolve the TMDB default path
+            const rawPoster = item.seasonPoster || item.season_poster_path || item.poster_path || item.posterPath;
+
+            return {
+                ...item,
+                resolvedPoster: getResolvedPosterUrl(
+                    String(item.tmdbId),
+                    rawPoster,
+                    profileData.userPosters,
+                    'w342', // Higher quality for export
+                    item.seasonNumber,
+                    true,
+                    true
+                )
+            };
+        });
     };
 
     return (
@@ -745,15 +750,20 @@ export default function ProfileSectionScreen() {
             )}
 
             {showEmptyError && (
-                <View style={styles.globalLoading}>
-                    <View style={styles.errorModal}>
-                        <Text style={styles.errorText}>Oops! No series found for this date</Text>
-                        <TouchableOpacity
-                            style={styles.errorBtn}
+                <View style={styles.errorOverlay}>
+                    <View style={[styles.landscapePopup, { backgroundColor: '#FFC107', width: 300 }]}>
+                        <View style={styles.popupHeader}>
+                            <Text style={styles.errorTitle}>OOPS!</Text>
+                        </View>
+
+                        <Text style={styles.errorText}>No series found for this date</Text>
+
+                        <Pressable
+                            style={styles.errorOkBtn}
                             onPress={() => setShowEmptyError(false)}
                         >
-                            <Text style={styles.errorBtnText}>OK</Text>
-                        </TouchableOpacity>
+                            <Text style={styles.errorOkBtnText}>OK</Text>
+                        </Pressable>
                     </View>
                 </View>
             )}
@@ -766,7 +776,7 @@ export default function ProfileSectionScreen() {
                 onDelete={handleEntryDelete}
                 userPosters={profileData?.userPosters}
             />
-        </View>
+        </View >
     );
 }
 
@@ -827,33 +837,63 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 9999,
     },
-    errorModal: {
-        width: '80%',
-        backgroundColor: '#1a1a1a',
-        padding: 30,
-        borderRadius: 20,
+    errorOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#333',
+        zIndex: 10000,
+    },
+    landscapePopup: {
+        borderRadius: 24,
+        paddingVertical: 18,
+        paddingHorizontal: 15,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10
+    },
+    closeModalBtn: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        padding: 5,
+        zIndex: 10
+    },
+    popupHeader: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: 8,
+        gap: 4
+    },
+    errorTitle: {
+        color: '#000',
+        fontSize: 18,
+        fontFamily: 'ArchivoBlack-Regular',
+        textAlign: 'center'
     },
     errorText: {
-        color: '#FFF',
-        fontSize: 20,
+        color: '#000',
+        fontSize: 12,
         fontWeight: '900',
         textAlign: 'center',
-        marginBottom: 25,
-        lineHeight: 28,
+        marginBottom: 15,
+        paddingHorizontal: 10,
+        lineHeight: 18
     },
-    errorBtn: {
-        backgroundColor: '#FFCC00',
+    errorOkBtn: {
+        backgroundColor: '#000',
+        paddingVertical: 10,
         paddingHorizontal: 40,
-        paddingVertical: 12,
-        borderRadius: 25,
+        borderRadius: 30,
+        alignItems: 'center'
     },
-    errorBtnText: {
-        color: '#000',
-        fontWeight: '900',
+    errorOkBtnText: {
+        color: '#FFC107',
         fontSize: 14,
+        fontFamily: 'ArchivoBlack-Regular'
     },
     userItem: {
         flexDirection: 'row',

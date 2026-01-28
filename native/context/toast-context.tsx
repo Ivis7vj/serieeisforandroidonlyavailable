@@ -9,6 +9,9 @@ interface ToastOptions {
     message: string;
     type?: ToastType;
     duration?: number;
+    variant?: 'default' | 'profile';
+    actionLabel?: string;
+    onActionPress?: () => void;
 }
 
 interface ToastContextType {
@@ -28,17 +31,14 @@ export const useToast = () => {
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [visible, setVisible] = useState(false);
-    const [message, setMessage] = useState('');
-    const [type, setType] = useState<ToastType>('info');
+    const [options, setOptions] = useState<ToastOptions>({ message: '' });
     const insets = useSafeAreaInsets();
 
-    // Animation value for position/opacity
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const translateY = useRef(new Animated.Value(-100)).current;
 
-    const showToast = useCallback(({ message, type = 'info', duration = 3000 }: ToastOptions) => {
-        setMessage(message);
-        setType(type);
+    const showToast = useCallback((opts: ToastOptions) => {
+        setOptions(opts);
         setVisible(true);
 
         // Reset values
@@ -59,7 +59,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             })
         ]).start();
 
-        // Auto Hide
+        const duration = opts.duration !== undefined ? opts.duration : 3000;
         if (duration > 0) {
             setTimeout(() => {
                 hideToast();
@@ -84,32 +84,47 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
     }, []);
 
+    const { type = 'info', message, variant = 'default', actionLabel, onActionPress } = options;
+
     const getIcon = () => {
+        const color = variant === 'profile' ? '#000' : '#000';
+        const size = variant === 'profile' ? 14 : 20;
+
         switch (type) {
-            case 'success': return <CheckCircle size={20} color="#000" />;
-            case 'error': return <AlertCircle size={20} color="#000" />;
-            case 'info': return <Info size={20} color="#000" />;
+            case 'success': return <CheckCircle size={size} color={color} />;
+            case 'error': return <AlertCircle size={size} color={color} />;
+            case 'info': return <Info size={size} color={color} />;
         }
     };
 
     const getColors = () => {
+        if (variant === 'profile') {
+            return {
+                bg: '#222', // Dark Grey
+                text: '#FFF',
+                iconBg: '#FFC107', // Yellow for Success/Info
+                accent: '#FFC107'
+            };
+        }
         switch (type) {
-            case 'success': return { bg: '#4ADE80', text: '#000' }; // Green
-            case 'error': return { bg: '#F87171', text: '#000' };   // Red
-            case 'info': return { bg: '#60A5FA', text: '#000' };    // Blue
+            case 'success': return { bg: '#4ADE80', text: '#000', iconBg: 'transparent', accent: '#000' };
+            case 'error': return { bg: '#F87171', text: '#000', iconBg: 'transparent', accent: '#000' };
+            case 'info': return { bg: '#60A5FA', text: '#000', iconBg: 'transparent', accent: '#000' };
         }
     };
 
-    const { bg, text } = getColors();
+    const { bg, text, iconBg, accent } = getColors();
+
+    const isProfile = variant === 'profile';
 
     return (
         <ToastContext.Provider value={{ showToast, hideToast }}>
             {children}
             {visible && (
-                <View style={[styles.container, { top: insets.top + 60 }]} pointerEvents="box-none">
+                <View style={[styles.container, { top: insets.top + (isProfile ? 20 : 60) }]} pointerEvents="box-none">
                     <Animated.View
                         style={[
-                            styles.toast,
+                            isProfile ? styles.profileToast : styles.toast,
                             {
                                 backgroundColor: bg,
                                 opacity: fadeAnim,
@@ -117,10 +132,30 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                             }
                         ]}
                     >
-                        <View style={styles.iconContainer}>{getIcon()}</View>
-                        <Text style={[styles.message, { color: text }]}>{message}</Text>
+                        <View style={[styles.iconContainer, isProfile && { backgroundColor: iconBg, borderRadius: 12, padding: 4, marginRight: 8 }]}>
+                            {getIcon()}
+                        </View>
+
+                        <Text style={[styles.message, { color: text }, isProfile && styles.profileMessage]} numberOfLines={2}>
+                            {message}
+                        </Text>
+
+                        {isProfile && actionLabel && (
+                            <TouchableOpacity
+                                style={styles.actionBtn}
+                                onPress={() => {
+                                    onActionPress?.();
+                                    hideToast();
+                                }}
+                            >
+                                <Text style={styles.actionText}>{actionLabel}</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {isProfile && <View style={styles.separator} />}
+
                         <TouchableOpacity onPress={hideToast} style={styles.closeBtn}>
-                            <X size={16} color={text} opacity={0.6} />
+                            <X size={isProfile ? 14 : 16} color={text} opacity={0.6} />
                         </TouchableOpacity>
                     </Animated.View>
                 </View>
@@ -143,20 +178,35 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         paddingHorizontal: 16,
-        borderRadius: 30, // Pill shape
+        borderRadius: 30,
         shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.30,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
         shadowRadius: 4.65,
         elevation: 8,
         minWidth: 200,
         maxWidth: '90%',
     },
+    profileToast: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 14, // Slightly larger radius for the wider look
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 10,
+        width: '96%', // Drastically wider
+        minWidth: 340,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
     iconContainer: {
         marginRight: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     message: {
         fontSize: 14,
@@ -164,8 +214,29 @@ const styles = StyleSheet.create({
         flex: 1,
         fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
     },
-    closeBtn: {
+    profileMessage: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: '#FFF',
+    },
+    actionBtn: {
         marginLeft: 10,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    actionText: {
+        color: '#FFC107', // Match yellow accent
+        fontSize: 13,
+        fontWeight: 'bold',
+    },
+    separator: {
+        width: 1,
+        height: 20,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        marginLeft: 10,
+    },
+    closeBtn: {
+        marginLeft: 8,
         padding: 4,
     }
 });

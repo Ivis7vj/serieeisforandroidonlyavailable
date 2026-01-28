@@ -114,7 +114,7 @@ export default function StickerSharePage() {
 
     // Resolve poster URL for the sticker
     const seriesId = stickerData.movie.seriesId || stickerData.movie.id;
-    const seasonNumber = stickerData.movie.seasonNumber || 0;
+    const seasonNumber = stickerData.seasonNumber !== undefined ? stickerData.seasonNumber : (stickerData.movie.seasonNumber || 0);
     const resolvedPoster = getResolvedPosterUrl(
         seriesId,
         stickerData.movie.poster_path,

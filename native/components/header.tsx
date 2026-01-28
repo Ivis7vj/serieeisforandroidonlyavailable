@@ -245,7 +245,6 @@ export const Header = React.memo(function HeaderImpl() {
                             {uploading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.menuItemText}>Edit Photo</Text>}
                         </Pressable>
                         <Pressable style={styles.menuItem} onPress={() => { router.push('/edit-profile'); setShowMenu(false); }}><Text style={styles.menuItemText}>Edit Details</Text></Pressable>
-                        <Pressable style={styles.menuItem} onPress={() => { router.push('/settings'); setShowMenu(false); }}><Text style={styles.menuItemText}>Settings</Text></Pressable>
                     </View>
                 </Pressable>
             </Modal>

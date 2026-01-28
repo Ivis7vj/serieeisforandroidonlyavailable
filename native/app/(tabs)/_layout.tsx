@@ -23,7 +23,9 @@ export default function TabLayout() {
   // We strictly decouple Header from React Navigation to prevent the "measure -> render" loop.
   // We render it as a sibling.
   // Explicitly hide on 'reviews' tab to match previous behavior.
-  const showHeader = !pathname.includes('/reviews');
+  // Explicitly hide on 'reviews' tab to match previous behavior.
+  // Also hide on 'search' tab as we implement a custom header with input there.
+  const showHeader = !pathname.includes('/reviews') && !pathname.includes('/search');
 
   const screenOptions = React.useMemo(() => ({
     headerShown: false, // Usage: We handle header externally
@@ -96,7 +98,24 @@ export default function TabLayout() {
           options={{
             headerShown: false,
             title: 'Profile',
-            tabBarIcon: ({ color }) => <MaterialIcons name="person" size={28} color={color} />,
+            tabBarIcon: ({ color }) => (
+              <View>
+                <MaterialIcons name="person" size={28} color={color} />
+                {useAuth().userData?.hasUnseenFollowerDot && (
+                  <View style={{
+                    position: 'absolute',
+                    right: -2,
+                    top: -2,
+                    backgroundColor: '#FF5722', // Vibrant Orange
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    borderWidth: 1.5,
+                    borderColor: '#000'
+                  }} />
+                )}
+              </View>
+            ),
           }}
           listeners={{
             tabPress: handleGuestTabPress,

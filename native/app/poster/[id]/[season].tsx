@@ -12,13 +12,10 @@ import {
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Lock, Check } from 'lucide-react-native';
-import { BlurView } from 'expo-blur';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { useAuth } from '@/context/auth-context';
 import { tmdbApi } from '@/utils/tmdb';
-import * as watchedService from '@/utils/watched-service';
-import { getPosterUnlockStatus } from '@/utils/poster-unlock';
 import { supabase } from '@/utils/supabase';
 import { db } from '@/utils/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -36,7 +33,6 @@ export default function PosterSelectionScreen() {
     const { currentUser, userData } = useAuth();
 
     const [posters, setPosters] = useState<any[]>([]);
-    const [unlockCount, setUnlockCount] = useState(1);
     const [selectedPoster, setSelectedPoster] = useState<string | null>(null);
     const [seriesName, setSeriesName] = useState('');
     const [loading, setLoading] = useState(true);
@@ -79,30 +75,6 @@ export default function PosterSelectionScreen() {
                 allPosters.push({ file_path: seriesData.poster_path });
             }
             setPosters(allPosters);
-
-            // 2. Calculate Unlock Status
-            const watchedEpisodes = await watchedService.getWatchedEpisodes(currentUser.uid, tmdbId);
-
-            const watchedPerSeason: Record<number, number> = {};
-            watchedEpisodes.forEach((ep: any) => {
-                if (ep && ep.season) {
-                    watchedPerSeason[ep.season] = (watchedPerSeason[ep.season] || 0) + 1;
-                }
-            });
-
-            let completedSeasonsCount = 0;
-            releasedSeasons.forEach((s: any) => {
-                const sNum = s.season_number;
-                const totalInSeason = s.episode_count || 0;
-                const watchedInSeason = watchedPerSeason[sNum] || 0;
-
-                if (totalInSeason > 0 && watchedInSeason >= totalInSeason) {
-                    completedSeasonsCount++;
-                }
-            });
-
-            const { unlockCount: unlocked } = getPosterUnlockStatus(totalSeasons, completedSeasonsCount, allPosters.length);
-            setUnlockCount(unlocked);
 
             // 3. Current Selection
             const posterKey = seasonNum > 0 ? `${tmdbId}_${seasonNum}` : `${tmdbId}_0`;
@@ -172,10 +144,10 @@ export default function PosterSelectionScreen() {
             setShowSuccess(true);
             triggerSuccess();
 
-            // Wait and go back
-            setTimeout(() => {
-                router.back();
-            }, 1500); // 1.5s for parity
+            // Wait for user interaction
+            // setTimeout(() => {
+            //     router.back();
+            // }, 1500);
 
         } catch (e: any) {
             console.error("Save poster error", e);
@@ -195,26 +167,31 @@ export default function PosterSelectionScreen() {
 
     return (
         <View style={styles.container}>
-            {/* SUCCESS POPUP (Parity) */}
+            {/* SUCCESS POPUP (Landscape) */}
             {showSuccess && (
                 <View style={styles.successOverlay}>
-                    <BlurView intensity={80} tint="dark" style={styles.successContent}>
-                        <View style={styles.successIconBox}>
-                            <Check size={36} color="#000" />
+                    <View style={styles.landscapePopup}>
+                        <View style={[styles.popupContent, { marginBottom: 15 }]}>
+                            <Text style={[styles.successText, { fontSize: 16 }]}>SUCCESSFULLY ADDED</Text>
                         </View>
-                        <Text style={styles.successTitle}>Poster updated successfully</Text>
-                    </BlurView>
+                        <Pressable
+                            style={styles.okBtn}
+                            onPress={() => router.back()}
+                        >
+                            <Text style={styles.okBtnText}>OK</Text>
+                        </Pressable>
+                    </View>
                 </View>
             )}
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <Pressable onPress={() => router.back()} style={styles.backBtn}>
-                    <ChevronLeft color="#FFF" size={28} />
+                    <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '900' }}>BACK</Text>
                 </Pressable>
                 <View>
                     <Text style={styles.title}>Select Global Poster</Text>
-                    <Text style={styles.subtitle}>{seriesName || 'Series'} • {unlockCount} / {posters.length} Unlocked</Text>
+                    <Text style={styles.subtitle}>{seriesName || 'Series'} • {posters.length} Posters Available</Text>
                 </View>
             </View>
 
@@ -224,7 +201,6 @@ export default function PosterSelectionScreen() {
                 keyExtractor={item => item.file_path}
                 contentContainerStyle={styles.list}
                 renderItem={({ item, index }) => {
-                    const isLocked = index >= unlockCount;
                     const isSelected = selectedPoster === item.file_path;
 
                     return (
@@ -232,9 +208,8 @@ export default function PosterSelectionScreen() {
                             style={[
                                 styles.card,
                                 isSelected && styles.cardSelected,
-                                isLocked && { opacity: 1 } // handle overlay
                             ]}
-                            onPress={() => !isLocked && !saving && handleSelect(item.file_path)}
+                            onPress={() => !saving && handleSelect(item.file_path)}
                         >
                             <Image
                                 source={{ uri: `https://image.tmdb.org/t/p/w500${item.file_path}` }}
@@ -242,17 +217,8 @@ export default function PosterSelectionScreen() {
                                 contentFit="cover"
                             />
 
-                            {isLocked && (
-                                <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill}>
-                                    <View style={styles.lockOverlay}>
-                                        <Lock color="#FFF" size={32} />
-                                    </View>
-                                </BlurView>
-                            )}
-
                             {isSelected && (
                                 <View style={styles.checkBadge}>
-                                    <Check color="#000" size={16} />
                                 </View>
                             )}
                         </Pressable>
@@ -355,29 +321,45 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.8)'
     },
-    successContent: {
-        width: '80%',
-        paddingVertical: 40,
+    landscapePopup: {
+        backgroundColor: '#FFC107', // Dark Yellow
+        width: 300,
+        borderRadius: 24,
+        paddingVertical: 12,
         paddingHorizontal: 20,
-        borderRadius: 20,
         alignItems: 'center',
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#333'
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10
     },
-    successIconBox: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: '#FFD600',
-        justifyContent: 'center',
+    popupContent: {
+        flexDirection: 'column',
         alignItems: 'center',
-        marginBottom: 20
+        marginBottom: 20,
+        gap: 12
     },
-    successTitle: {
-        color: '#FFF',
+    successText: {
+        color: '#000',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
         textAlign: 'center'
+    },
+    okBtn: {
+        backgroundColor: '#000',
+        paddingVertical: 12,
+        paddingHorizontal: 40,
+        borderRadius: 30,
+        width: '100%',
+        alignItems: 'center'
+    },
+    okBtnText: {
+        color: '#FFC107',
+        fontSize: 16,
+        fontWeight: '900',
+        textTransform: 'uppercase'
     }
 });

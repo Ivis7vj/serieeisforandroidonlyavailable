@@ -326,6 +326,7 @@ export default function RootLayout() {
     'Oswald-Bold': require('../assets/fonts/Oswald-VariableFont_wght.ttf'),
     'Boldonse-Regular': require('../assets/fonts/Boldonse-Regular.ttf'),
     'Poppins-Bold': require('../assets/fonts/poppins.bold.ttf'),
+    'ArchivoBlack-Regular': require('../assets/fonts/ArchivoBlack-Regular.ttf'),
   });
 
 

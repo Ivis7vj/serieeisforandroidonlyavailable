@@ -8,7 +8,8 @@ import {
     Pressable,
     ActivityIndicator,
     LayoutAnimation,
-    Platform
+    Platform,
+    Animated
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -20,13 +21,19 @@ import {
     User,
     MessageSquare,
     Share as ShareIcon,
-    AlertTriangle
+    AlertTriangle,
+    Check,
+    Plus,
+    Eye,
+    EyeOff
 } from 'lucide-react-native';
 import { ReportReviewModals } from '@/components/review/ReportReviewModals';
 
 import { useAuth } from '@/context/auth-context';
 import { tmdbApi } from '@/utils/tmdb';
 import * as reviewService from '@/utils/review-service';
+import * as watchedService from '@/utils/watched-service';
+import * as watchlistService from '@/utils/watchlist-service';
 import { triggerSelection } from '@/utils/haptics';
 import { db } from '@/utils/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -42,11 +49,13 @@ export default function EpisodeDetailsScreen() {
     const [data, setData] = useState<any>(null);
     const [reviews, setReviews] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState(0); // 0: Details, 1: Reviews
     const [expanded, setExpanded] = useState(false);
     const [reportModalVisible, setReportModalVisible] = useState(false);
     const [selectedReviewForReport, setSelectedReviewForReport] = useState<any>(null);
-    const pagerRef = useRef<ScrollView>(null);
+    const [isWatched, setIsWatched] = useState(false);
+    const [isListed, setIsListed] = useState(false);
+
+    const scrollY = useRef(new Animated.Value(0)).current;
 
     const tmdbId = parseInt(id as string);
     const seasonNum = parseInt(season as string);
@@ -86,6 +95,17 @@ export default function EpisodeDetailsScreen() {
                 }));
 
                 setReviews(enrichedRevs);
+
+                // CHECK STATUS
+                if (currentUser) {
+                    const watchedEps = await watchedService.getWatchedEpisodes(currentUser.uid, tmdbId);
+                    const isW = watchedEps.some((e: any) => e.season === seasonNum && e.episode === episodeNum);
+                    setIsWatched(isW);
+
+                    const isL = await watchlistService.isInWatchlist(currentUser.uid, epData.id); // epData.id is unique episode ID
+                    setIsListed(isL);
+                }
+
                 setLoading(false);
             } catch (e) {
                 console.error("Episode fetch failed", e);
@@ -93,7 +113,7 @@ export default function EpisodeDetailsScreen() {
             }
         };
         fetchAll();
-    }, [tmdbId, seasonNum, episodeNum]);
+    }, [tmdbId, seasonNum, episodeNum, currentUser]);
 
     if (loading) {
         return (
@@ -110,279 +130,251 @@ export default function EpisodeDetailsScreen() {
         ...(data.credits?.cast || [])
     ];
 
+    const toggleWatched = async () => {
+        if (!currentUser) return;
+        triggerSelection();
+        const oldVal = isWatched;
+        setIsWatched(!oldVal);
+
+        if (oldVal) {
+            await watchedService.unmarkEpisodeWatched(currentUser.uid, tmdbId, seasonNum, episodeNum);
+        } else {
+            await watchedService.markEpisodeWatched(currentUser.uid, tmdbId, seasonNum, episodeNum);
+            // Verify strict rule: If adding to watched, usually we remove from watchlist?
+            // User asked for "add the watched and the wathlist and the watched button"
+            // Assuming independent toggles unless specified otherwise.
+            // But traditionally, watching removes from watchlist.
+            if (isListed) {
+                setIsListed(false);
+                await watchlistService.removeFromWatchlist(currentUser.uid, data.id);
+            }
+        }
+    };
+
+    const toggleListed = async () => {
+        if (!currentUser) return;
+        triggerSelection();
+        const oldVal = isListed;
+        setIsListed(!oldVal);
+
+        if (oldVal) {
+            await watchlistService.removeFromWatchlist(currentUser.uid, data.id);
+        } else {
+            const itemToSave = {
+                id: data.id,
+                name: `${data.name} - S${seasonNum}E${episodeNum}`,
+                poster_path: data.still_path,
+                vote_average: data.vote_average,
+                first_air_date: data.air_date,
+                type: 'episode',
+                seriesId: tmdbId,
+                seasonNumber: seasonNum,
+                episodeNumber: episodeNum
+            };
+            await watchlistService.addToWatchlist(currentUser.uid, itemToSave);
+        }
+    };
+
     const backdropUrl = data.still_path
         ? `https://image.tmdb.org/t/p/original${data.still_path}`
         : null;
 
+    const avgRating = reviews.length > 0
+        ? (reviews.reduce((acc, r) => acc + (parseFloat(r.rating) || 0), 0) / reviews.length).toFixed(1)
+        : "0.0";
+
     return (
         <View style={styles.container}>
-            <LinearGradient
-                colors={['#000', '#111']}
-                style={StyleSheet.absoluteFill}
-            />
 
-            {/* HERO SECTION */}
-            <View style={styles.hero}>
-                {backdropUrl && (
-                    <Image
-                        source={{ uri: backdropUrl }}
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 100 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* HERO SECTION */}
+                <View style={styles.hero}>
+                    {backdropUrl && (
+                        <Image
+                            source={{ uri: backdropUrl }}
+                            style={StyleSheet.absoluteFill}
+                            contentFit="cover"
+                        />
+                    )}
+                    <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.5)', '#000']}
                         style={StyleSheet.absoluteFill}
-                        contentFit="cover"
                     />
-                )}
-                <LinearGradient
-                    colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)', '#000']}
-                    style={StyleSheet.absoluteFill}
-                />
-
-                {/* Header Row */}
-                <View style={[styles.headerRow, { paddingTop: insets.top }]}>
-                    <Pressable
-                        style={styles.backBtn}
-                        onPress={() => router.back()}
-                    >
-                        <ArrowLeft color="white" size={28} />
-                    </Pressable>
-
-                </View>
-            </View>
-
-            <View style={styles.contentContainer}>
-                {/* TABS */}
-                <View style={styles.tabs}>
-                    <Pressable
-                        style={[styles.tabItem, activeTab === 0 && styles.tabActive]}
-                        onPress={() => {
-                            triggerSelection();
-                            setActiveTab(0);
-                            pagerRef.current?.scrollTo({ x: 0, animated: true });
-                        }}
-                    >
-                        <Text style={[styles.tabText, activeTab === 0 && styles.tabTextActive]}>Episode Details</Text>
-                        {activeTab === 0 && <View style={styles.activeLine} />}
-                    </Pressable>
-                    <Pressable
-                        style={[styles.tabItem, activeTab === 1 && styles.tabActive]}
-                        onPress={() => {
-                            triggerSelection();
-                            setActiveTab(1);
-                            pagerRef.current?.scrollTo({ x: width, animated: true });
-                        }}
-                    >
-                        <Text style={[styles.tabText, activeTab === 1 && styles.tabTextActive]}>Reviews ({reviews.length})</Text>
-                        {activeTab === 1 && <View style={styles.activeLine} />}
-                    </Pressable>
+                    <View style={styles.heroInfo}>
+                        <Text style={styles.heroTitle} numberOfLines={2}>{data.name}</Text>
+                        <Text style={styles.heroSubtitle}>Season {seasonNum} • Episode {episodeNum}</Text>
+                    </View>
                 </View>
 
-                {/* TAB PAGER (Parity: Swipeable) */}
-                <ScrollView
-                    ref={pagerRef}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onMomentumScrollEnd={(e) => {
-                        const newTab = Math.round(e.nativeEvent.contentOffset.x / width);
-                        if (newTab !== activeTab) {
-                            setActiveTab(newTab);
-                        }
-                    }}
-                    scrollEventThrottle={16}
-                >
-                    {/* SECTION 1: DETAILS */}
-                    <ScrollView style={{ width: width }} contentContainerStyle={{ paddingBottom: 100, width: '100%' }}>
-                        <View style={styles.section}>
-                            <View style={{ paddingHorizontal: 20 }}>
-                                <Text style={styles.title}>{data.name}</Text>
-                                <View style={styles.metaRow}>
-                                    <Text style={styles.metaText}>S{seasonNum} E{episodeNum}</Text>
-                                    <Text style={styles.dot}>•</Text>
-                                    <View style={styles.dateBadge}>
-                                        <Text style={styles.dateBadgeText}>
-                                            {data.air_date ? new Date(data.air_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
-                                        </Text>
+                <View style={styles.statsActionsBar}>
+                    <View style={styles.statsCol}>
+                        <View style={styles.statItem}>
+                            <Star size={18} color="#FFC107" fill="#FFC107" />
+                            <Text style={styles.statVal}>{avgRating}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.actionsRow}>
+                        <Pressable
+                            style={[styles.actionBtn, isWatched && styles.actionBtnActive]}
+                            onPress={toggleWatched}
+                        >
+                            {isWatched ? <Check size={20} color="#000" /> : <Eye size={20} color="#FFC107" />}
+                            <Text style={[styles.actionBtnText, isWatched && styles.actionBtnTextActive]}>
+                                {isWatched ? 'WATCHED' : 'WATCH'}
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            style={[styles.actionBtn, isListed && styles.actionBtnActive]}
+                            onPress={toggleListed}
+                        >
+                            {isListed ? <Check size={20} color="#000" /> : <Plus size={20} color="#FFC107" />}
+                            <Text style={[styles.actionBtnText, isListed && styles.actionBtnTextActive]}>
+                                {isListed ? 'LISTED' : 'LIST'}
+                            </Text>
+                        </Pressable>
+                    </View>
+                </View>
+
+                {/* META INFO */}
+                <View style={styles.metaSection}>
+                    <View style={styles.metaItem}>
+                        <Text style={styles.metaLabel}>AIR DATE</Text>
+                        <Text style={styles.metaValue}>
+                            {data.air_date ? new Date(data.air_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                        </Text>
+                    </View>
+                    {data.runtime && (
+                        <View style={styles.metaItem}>
+                            <Text style={styles.metaLabel}>RUNTIME</Text>
+                            <Text style={styles.metaValue}>{data.runtime} MIN</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* OVERVIEW */}
+                <View style={styles.overviewSection}>
+                    <Text style={styles.sectionTitle}>OVERVIEW</Text>
+                    <Pressable onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpanded(!expanded); }}>
+                        <Text style={styles.overview} numberOfLines={expanded ? undefined : 4}>
+                            {data.overview || "No overview available for this episode."}
+                        </Text>
+                        {data.overview && data.overview.length > 200 && (
+                            <Text style={styles.readMore}>{expanded ? 'SHOW LESS' : 'READ MORE'}</Text>
+                        )}
+                    </Pressable>
+                </View>
+
+                {/* CAST */}
+                {allCast.length > 0 && (
+                    <View style={styles.castSection}>
+                        <Text style={[styles.sectionTitle, { paddingHorizontal: 20 }]}>CAST & CREW</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{ paddingHorizontal: 20, gap: 15 }}
+                        >
+                            {allCast.map((c: any) => (
+                                <Pressable
+                                    key={`${c.id}-${c.character}`}
+                                    style={styles.castCard}
+                                    onPress={() => router.push(`/person/${c.id}`)}
+                                >
+                                    <View style={styles.castImgBox}>
+                                        {c.profile_path ? (
+                                            <Image source={{ uri: `https://image.tmdb.org/t/p/w200${c.profile_path}` }} style={styles.castImg} />
+                                        ) : (
+                                            <User color="#444" size={30} />
+                                        )}
                                     </View>
-                                    {data.runtime && (
-                                        <>
-                                            <Text style={styles.dot}>•</Text>
-                                            <Text style={styles.metaText}>{data.runtime}min</Text>
-                                        </>
-                                    )}
-                                </View>
-
-                                <Pressable onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpanded(!expanded); }}>
-                                    <Text style={styles.overview} numberOfLines={expanded ? undefined : 4}>
-                                        {data.overview || "No overview available for this episode."}
-                                    </Text>
-                                    {data.overview && data.overview.length > 200 && (
-                                        <Text style={styles.readMore}>{expanded ? 'Show less' : 'Read more'}</Text>
-                                    )}
+                                    <Text style={styles.castName} numberOfLines={1}>{c.name}</Text>
+                                    <Text style={styles.castChar} numberOfLines={1}>{c.character || c.job}</Text>
                                 </Pressable>
-                            </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
 
-                            {/* CAST */}
-                            {allCast.length > 0 && (
-                                <View style={styles.castSection}>
-                                    <Text style={[styles.secTitle, { paddingHorizontal: 20 }]}>CAST & CREW</Text>
-                                    <ScrollView
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={{ paddingHorizontal: 20, gap: 15 }}
-                                        nestedScrollEnabled={true}
+                {/* REVIEWS SECTION */}
+                <View style={styles.reviewsSection}>
+                    <View style={styles.reviewsHeader}>
+                        <Text style={styles.sectionTitle}>COMMUNITY</Text>
+                        <Pressable
+                            style={styles.rateBtn}
+                            onPress={() => {
+                                router.push({
+                                    pathname: '/review',
+                                    params: {
+                                        type: 'episode',
+                                        id: tmdbId,
+                                        season: seasonNum,
+                                        episode: episodeNum,
+                                        name: `${data.name}`,
+                                        poster_path: data.still_path
+                                    }
+                                } as any);
+                            }}
+                        >
+                            <Text style={styles.rateBtnText}>RATE</Text>
+                        </Pressable>
+                    </View>
+
+                    {reviews.length > 0 ? (
+                        reviews.map((rev, idx) => (
+                            <View key={idx} style={styles.reviewCard}>
+                                <View style={styles.revTop}>
+                                    <Pressable
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                                        onPress={() => {
+                                            if (rev.userId === currentUser?.uid) {
+                                                router.push('/(tabs)/profile');
+                                            } else {
+                                                router.push(`/public-profile/${rev.userId}`);
+                                            }
+                                        }}
                                     >
-                                        {allCast.map((c: any) => (
-                                            <Pressable
-                                                key={`${c.id}-${c.character}`}
-                                                style={styles.castCard}
-                                                onPress={() => router.push(`/person/${c.id}`)}
-                                            >
-                                                <View style={styles.castImgBox}>
-                                                    {c.profile_path ? (
-                                                        <Image source={{ uri: `https://image.tmdb.org/t/p/w200${c.profile_path}` }} style={styles.castImg} />
-                                                    ) : (
-                                                        <User color="#444" size={30} />
-                                                    )}
-                                                </View>
-                                                <Text style={styles.castName} numberOfLines={1}>{c.name}</Text>
-                                                <Text style={styles.castChar} numberOfLines={1}>{c.character || c.job}</Text>
-                                            </Pressable>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            )}
-                        </View>
-                    </ScrollView>
-
-                    {/* SECTION 2: REVIEWS */}
-                    <ScrollView style={{ width: width }} contentContainerStyle={{ paddingBottom: 100, width: '100%' }}>
-                        <View style={styles.section}>
-                            <View style={[styles.revHeader, { paddingHorizontal: 20 }]}>
-                                <Text style={styles.secTitle}>Community Reviews</Text>
-                                {(() => {
-                                    const userReview = reviews.find(r => r.userId === currentUser?.uid);
-                                    const isRated = !!userReview;
-
-                                    return (
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                            <Pressable
-                                                style={[styles.rateBtn, isRated && { backgroundColor: '#333', borderWidth: 1, borderColor: '#FFCC00' }]}
-                                                onPress={() => {
-                                                    router.push({
-                                                        pathname: '/review',
-                                                        params: {
-                                                            type: 'episode',
-                                                            id: tmdbId,
-                                                            season: seasonNum,
-                                                            episode: episodeNum,
-                                                            name: `S${seasonNum}E${episodeNum}: ${data.name}`,
-                                                            poster_path: data.still_path
-                                                        }
-                                                    } as any);
-                                                }}
-                                            >
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <Star size={16} color={isRated ? "#FFCC00" : "#000"} fill={isRated ? "#FFCC00" : "transparent"} />
-                                                    <Text style={[styles.rateBtnText, isRated && { color: '#FFCC00' }]}>{isRated ? 'RATED' : 'RATE'}</Text>
-                                                </View>
-                                            </Pressable>
-
-                                            {isRated && (
-                                                <Pressable
-                                                    style={[styles.rateBtn, { backgroundColor: '#222', paddingHorizontal: 10 }]}
-                                                    onPress={() => {
-                                                        triggerSelection();
-                                                        const stickerDataToPass = {
-                                                            movie: {
-                                                                id: tmdbId,
-                                                                name: data.name,
-                                                                poster_path: data.still_path,
-                                                                seasonEpisode: `S${seasonNum} E${episodeNum}`
-                                                            },
-                                                            rating: userReview.rating,
-                                                            user: currentUser ? {
-                                                                username: currentUser.displayName || 'User',
-                                                                photoURL: currentUser.photoURL || undefined
-                                                            } : null,
-                                                            isEpisodes: true,
-                                                            seasonCompleted: false,
-                                                            resolvedPoster: data.still_path
-                                                        };
-                                                        router.push({
-                                                            pathname: '/share-sticker',
-                                                            params: { data: JSON.stringify(stickerDataToPass) }
-                                                        });
-                                                    }}
-                                                >
-                                                    <ShareIcon size={16} color="#FFF" />
-                                                </Pressable>
-                                            )}
-                                        </View>
-                                    );
-                                })()}
-                            </View>
-
-                            {reviews.length > 0 ? (
-                                reviews.map((rev, idx) => (
-                                    <View key={idx} style={[styles.reviewCard, { marginHorizontal: 20 }]}>
-                                        <View style={styles.revTop}>
-                                            <Pressable
-                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-                                                onPress={() => {
-                                                    if (rev.userId === currentUser?.uid) {
-                                                        router.push('/(tabs)/profile');
-                                                    } else {
-                                                        router.push(`/public-profile/${rev.userId}`);
-                                                    }
-                                                }}
-                                            >
-                                                <Image
-                                                    source={{ uri: rev.photoURL || `https://ui-avatars.com/api/?name=${rev.userName}&background=random` }}
-                                                    style={styles.avatar}
-                                                />
-                                                <Text style={styles.userName}>{rev.userName}</Text>
-                                            </Pressable>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                <Star size={14} color="#FFD600" fill="#FFD600" />
-                                                <Text style={styles.ratingText}>{rev.rating}</Text>
-                                            </View>
-                                        </View>
-                                        <Text style={styles.reviewBody}>{rev.review}</Text>
-                                        <View style={styles.revBottomRow}>
-                                            <Text style={styles.date}>{rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Recent'}</Text>
-
-                                            <View style={styles.revActionsRight}>
-                                                {/* Report Button */}
-                                                {rev.userId !== currentUser?.uid && (
-                                                    <Pressable
-                                                        style={styles.reportBtnSmall}
-                                                        onPress={() => {
-                                                            setSelectedReviewForReport(rev);
-                                                            setReportModalVisible(true);
-                                                        }}
-                                                    >
-                                                        <AlertTriangle size={15} color="#cc0000" strokeWidth={3} />
-                                                    </Pressable>
-                                                )}
-
-                                                {/* Indicator Badge */}
-                                                <View style={styles.indicatorBadge}>
-                                                    <Text style={styles.indicatorText}>
-                                                        {rev.isEpisode ? 'EPISODE' : 'SEASON'}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        </View>
+                                        <Image
+                                            source={{ uri: rev.photoURL || `https://ui-avatars.com/api/?name=${rev.userName}&background=random` }}
+                                            style={styles.avatar}
+                                        />
+                                        <Text style={styles.userName}>{rev.userName}</Text>
+                                    </Pressable>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                        <Star size={14} color="#FFC107" fill="#FFC107" />
+                                        <Text style={styles.ratingText}>{rev.rating}</Text>
                                     </View>
-                                ))
-                            ) : (
-                                <View style={styles.emptyState}>
-                                    <MessageSquare size={40} color="#444" style={{ marginBottom: 10 }} />
-                                    <Text style={{ color: '#666' }}>No reviews yet.</Text>
                                 </View>
-                            )}
+                                {rev.review ? <Text style={styles.reviewBody}>{rev.review}</Text> : null}
+                                <View style={styles.revBottom}>
+                                    <Text style={styles.revDate}>
+                                        {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Recent'}
+                                    </Text>
+                                    {rev.userId !== currentUser?.uid && (
+                                        <Pressable
+                                            onPress={() => {
+                                                setSelectedReviewForReport(rev);
+                                                setReportModalVisible(true);
+                                            }}
+                                        >
+                                            <AlertTriangle size={14} color="#cc0000" />
+                                        </Pressable>
+                                    )}
+                                </View>
+                            </View>
+                        ))
+                    ) : (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyText}>NO REVIEWS YET</Text>
                         </View>
-                    </ScrollView>
-                </ScrollView>
-            </View>
+                    )}
+                </View>
+            </ScrollView>
 
             <ReportReviewModals
                 visible={reportModalVisible}
@@ -402,7 +394,13 @@ export default function EpisodeDetailsScreen() {
                     email: currentUser?.email ?? ''
                 }}
             />
-        </View >
+
+            <View style={[styles.header, { paddingTop: insets.top }]}>
+                <Pressable style={styles.backBtn} onPress={() => router.back()}>
+                    <ArrowLeft color="white" size={28} />
+                </Pressable>
+            </View>
+        </View>
     );
 }
 
@@ -417,126 +415,145 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center'
     },
-    hero: {
-        width: '100%',
-        height: 250,
-        position: 'relative'
-    },
-    headerRow: {
-        width: '100%',
-        minHeight: Platform.OS === 'ios' ? 100 : 56, // Changed height to minHeight
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10, // Keep padding
-        borderBottomWidth: 0, // Removed border for cleaner look overlay
+    header: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
         zIndex: 100,
+        paddingHorizontal: 15,
+        height: 100,
+        justifyContent: 'center'
     },
     backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 10,
+        alignItems: 'center'
     },
-    contentContainer: {
-        flex: 1,
-        backgroundColor: '#000',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        overflow: 'hidden'
-    },
-    tabs: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: '#222',
-        marginBottom: 20
-    },
-    tabItem: {
-        flex: 1,
-        paddingVertical: 15,
-        alignItems: 'center',
+    hero: {
+        width: '100%',
+        height: 300,
         position: 'relative'
     },
-    tabActive: {
-        // Active state style if needed
-    },
-    tabText: {
-        color: '#666',
-        fontWeight: 'bold',
-        fontSize: 14,
-        textTransform: 'uppercase'
-    },
-    tabTextActive: {
-        color: '#FFF'
-    },
-    activeLine: {
+    heroInfo: {
         position: 'absolute',
-        bottom: 0,
-        width: '40%',
-        height: 3,
-        backgroundColor: '#FFD600',
-        borderRadius: 2
+        bottom: 20,
+        left: 20,
+        right: 20
     },
-    section: {
-        // Removed paddingHorizontal to allow carousels to bleed
-    },
-    title: {
+    heroTitle: {
         color: '#FFF',
-        fontSize: 24,
+        fontSize: 32,
         fontWeight: 'bold',
-        marginBottom: 10
+        lineHeight: 36
     },
-    metaRow: {
+    heroSubtitle: {
+        color: '#FFC107',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginTop: 5
+    },
+    statsActionsBar: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#000',
+        borderBottomWidth: 1,
+        borderBottomColor: '#111'
+    },
+    statsCol: {
+        flex: 1
+    },
+    statItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 20,
-        flexWrap: 'wrap', // Fix: Allow wrapping if text is too long
-        gap: 6 // Add gap for wrapped items
+        gap: 8
     },
-    dateBadge: {
-        backgroundColor: 'rgba(255, 204, 0, 0.15)',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 204, 0, 0.3)',
+    statVal: {
+        color: '#FFF',
+        fontSize: 26,
+        fontWeight: 'bold'
     },
-    dateBadgeText: {
-        color: '#FFCC00',
+    statLabel: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 10,
+        fontWeight: 'bold',
+        marginTop: 2
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        gap: 10
+    },
+    actionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 25,
+        backgroundColor: '#000',
+        borderWidth: 2,
+        borderColor: '#FFC107'
+    },
+    actionBtnActive: {
+        backgroundColor: '#FFC107'
+    },
+    actionBtnText: {
+        color: '#FFC107',
         fontSize: 12,
-        fontWeight: '700',
+        fontWeight: 'bold'
     },
-    metaText: {
-        color: '#AAA',
-        fontSize: 14
+    actionBtnTextActive: {
+        color: '#000'
     },
-    dot: {
-        color: '#444',
-        marginHorizontal: 8
+    metaSection: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+        gap: 30
     },
-    overview: {
-        color: '#CCC',
-        fontSize: 15,
-        lineHeight: 22,
-        marginBottom: 5
+    metaItem: {
+        gap: 4
     },
-    readMore: {
-        color: '#FFD600',
+    metaLabel: {
+        color: 'rgba(255,255,255,0.3)',
+        fontSize: 10,
+        fontWeight: 'bold'
+    },
+    metaValue: {
+        color: '#FFF',
+        fontSize: 14,
+        fontWeight: 'bold'
+    },
+    overviewSection: {
+        paddingHorizontal: 20,
+        marginTop: 10
+    },
+    sectionTitle: {
+        color: '#FFF',
         fontSize: 14,
         fontWeight: 'bold',
-        marginTop: 5,
-        marginBottom: 20
+        marginBottom: 15,
+        letterSpacing: 1
+    },
+    overview: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 15,
+        lineHeight: 24
+    },
+    readMore: {
+        color: '#FFC107',
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginTop: 10
     },
     castSection: {
-        marginTop: 20
-    },
-    secTitle: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 15,
-        textTransform: 'uppercase'
+        marginTop: 30
     },
     castCard: {
         width: 80,
@@ -547,12 +564,12 @@ const styles = StyleSheet.create({
         height: 70,
         borderRadius: 35,
         overflow: 'hidden',
-        backgroundColor: '#111',
+        backgroundColor: '#000',
         marginBottom: 8,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#222'
+        borderColor: '#111'
     },
     castImg: {
         width: '100%',
@@ -565,96 +582,82 @@ const styles = StyleSheet.create({
         textAlign: 'center'
     },
     castChar: {
-        color: '#666',
+        color: 'rgba(255,255,255,0.5)',
         fontSize: 10,
         textAlign: 'center'
     },
-    revHeader: {
+    reviewsSection: {
+        marginTop: 40,
+        paddingHorizontal: 20
+    },
+    reviewsHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 20
     },
     rateBtn: {
-        backgroundColor: '#FFD600',
-        paddingVertical: 6,
-        paddingHorizontal: 15,
+        backgroundColor: '#FFF',
+        paddingHorizontal: 20,
+        paddingVertical: 8,
         borderRadius: 20
     },
     rateBtnText: {
         color: '#000',
-        fontWeight: 'bold',
-        fontSize: 12
+        fontSize: 12,
+        fontWeight: 'bold'
     },
     reviewCard: {
-        backgroundColor: '#0a0a0a',
-        padding: 15,
-        borderRadius: 12,
+        backgroundColor: '#000',
+        padding: 20,
+        borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: '#111',
         marginBottom: 15
-    },
-    revBottomRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-        marginTop: 10
-    },
-    revActionsRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8
-    },
-    reportBtnSmall: {
-        padding: 4,
-        marginRight: -4,
-    },
-    indicatorBadge: {
-        backgroundColor: '#1a1a1a',
-        paddingHorizontal: 6,
-        paddingVertical: 3,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: '#222'
-    },
-    indicatorText: {
-        color: '#888',
-        fontSize: 9,
-        fontWeight: 'bold',
-        textTransform: 'uppercase'
     },
     revTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 10
+        alignItems: 'center',
+        marginBottom: 15
     },
     avatar: {
-        width: 30,
-        height: 30,
-        borderRadius: 15
+        width: 32,
+        height: 32,
+        borderRadius: 16
     },
     userName: {
         color: '#FFF',
-        fontWeight: 'bold',
-        fontSize: 14
+        fontSize: 14,
+        fontWeight: 'bold'
     },
     ratingText: {
-        color: '#FFD600',
-        fontWeight: 'bold',
-        fontSize: 14
+        color: '#FFC107',
+        fontSize: 14,
+        fontWeight: 'bold'
     },
     reviewBody: {
-        color: '#CCC',
+        color: 'rgba(255,255,255,0.7)',
         fontSize: 14,
-        lineHeight: 20
+        lineHeight: 22
     },
-    date: {
-        color: '#444',
-        fontSize: 12,
-        marginTop: 10
+    revBottom: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 15
+    },
+    revDate: {
+        color: 'rgba(255,255,255,0.2)',
+        fontSize: 12
     },
     emptyState: {
-        alignItems: 'center',
-        paddingVertical: 40
+        paddingVertical: 40,
+        alignItems: 'center'
+    },
+    emptyText: {
+        color: 'rgba(255,255,255,0.1)',
+        fontSize: 14,
+        fontWeight: 'bold'
     }
 });

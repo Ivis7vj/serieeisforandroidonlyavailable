@@ -19,7 +19,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { MaterialIcons, FontAwesome6 } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { MoreVertical, Plus, Instagram, Twitter, X, Star, MessageCircle } from 'lucide-react-native';
+import { MoreVertical, Plus, Instagram, Twitter, X, Star, MessageCircle, Trash2 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAuth } from '@/context/auth-context';
@@ -32,6 +32,8 @@ import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { triggerSelection, triggerImpact } from '@/utils/haptics';
 import { followUser, unfollowUser, isFollowingUser } from '@/utils/follow-service';
 import ReviewItem from '@/components/series/ReviewItem';
+import ProfileHeader from '@/components/ProfileHeader';
+import { useToast } from '@/context/toast-context';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -102,8 +104,12 @@ export default function ProfileScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followLoading, setFollowLoading] = useState(false);
+    const { showToast } = useToast();
     const [activeTab, setActiveTab] = useState('Profile');
     const [showFullPFP, setShowFullPFP] = useState(false);
+
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<any>(null);
 
     const followIconScale = useSharedValue(1);
 
@@ -145,7 +151,13 @@ export default function ProfileScreen() {
     useFocusEffect(
         useCallback(() => {
             loadData(false);
-        }, [loadData])
+            // Clear the general profile tab dot when viewing own profile
+            if (isOwnProfile && authUserData?.hasUnseenFollowerDot) {
+                updateDoc(doc(db, 'users', currentUser.uid), {
+                    hasUnseenFollowerDot: false
+                }).catch(() => { });
+            }
+        }, [loadData, isOwnProfile, authUserData?.hasUnseenFollowerDot, currentUser?.uid])
     );
 
     const onRefresh = () => {
@@ -166,10 +178,45 @@ export default function ProfileScreen() {
                 setIsFollowing(true);
             }
             loadData(true);
+            showToast({ message: isFollowing ? "Unfollowed user" : "Followed user!", type: 'success', variant: 'profile' });
         } catch (e) {
-            Alert.alert("Error", "Action failed.");
+            showToast({ message: "Action failed.", type: 'error', variant: 'profile' });
         } finally {
             setFollowLoading(false);
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!itemToDelete || !currentUser) return;
+        triggerImpact();
+        setLoading(true);
+
+        try {
+            const userRef = doc(db, 'users', currentUser.uid);
+            const currentFavs = profileData?.userInfo?.favorites || [];
+            const updatedFavs = currentFavs.filter((f: any) => String(f.id || f.tmdbId) !== String(itemToDelete.id || itemToDelete.tmdbId));
+
+            await updateDoc(userRef, {
+                favorites: updatedFavs
+            });
+
+            // Optimistic update
+            setProfileData((prev: any) => ({
+                ...prev,
+                userInfo: {
+                    ...prev.userInfo,
+                    favorites: updatedFavs
+                }
+            }));
+
+            setShowDeleteModal(false);
+            setItemToDelete(null);
+            showToast({ message: "Removed from favorites", type: 'success', variant: 'profile' });
+        } catch (error) {
+            console.error("Delete favorite failed:", error);
+            showToast({ message: "Failed to remove from favorites", type: 'error', variant: 'profile' });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -201,13 +248,28 @@ export default function ProfileScreen() {
                             }}
                         >
                             {fav ? (
-                                <Image
-                                    key={`fav-${fav.id || fav.tmdbId}-${fav.poster_path}`}
-                                    source={{ uri: getResolvedPosterUrl(String(fav.id || fav.tmdbId), fav.poster_path, isOwnProfile ? globalPosters : userPosters, 'w342') || undefined }}
-                                    style={StyleSheet.absoluteFillObject}
-                                    contentFit="cover"
-                                    transition={200}
-                                />
+                                <>
+                                    <Image
+                                        key={`fav-${fav.id || fav.tmdbId}-${fav.poster_path}`}
+                                        source={{ uri: getResolvedPosterUrl(String(fav.id || fav.tmdbId), fav.poster_path, undefined, 'w342') || undefined }}
+                                        style={StyleSheet.absoluteFillObject}
+                                        contentFit="cover"
+                                        transition={200}
+                                    />
+                                    {isOwnProfile && (
+                                        <Pressable
+                                            style={styles.deleteFavBtn}
+                                            onPress={(e) => {
+                                                e.stopPropagation();
+                                                triggerSelection();
+                                                setItemToDelete(fav);
+                                                setShowDeleteModal(true);
+                                            }}
+                                        >
+                                            <Trash2 color="#FFF" size={14} />
+                                        </Pressable>
+                                    )}
+                                </>
                             ) : (
                                 <Plus color="#222" size={32} />
                             )}
@@ -245,132 +307,75 @@ export default function ProfileScreen() {
                     </View>
                 )}
 
-                {/* Banner Section */}
-                <Pressable
-                    style={styles.bannerContainer}
-                    onPress={() => isOwnProfile && router.push('/banner-search')}
-                >
-                    {user?.bannerBackdropPath ? (
-                        <Image
-                            key={`banner-${user.bannerBackdropPath}`}
-                            source={{ uri: `https://image.tmdb.org/t/p/w1280${user.bannerBackdropPath}` }}
-                            style={styles.bannerImage}
-                            contentFit="cover"
-                            transition={300}
-                        />
-                    ) : (
-                        <View style={styles.bannerPlaceholder}>
-                            <Text style={styles.bannerTitle}>No banner set</Text>
-                        </View>
-                    )}
-                    <View style={styles.bannerOverlay} />
-                </Pressable>
+                {/* New Strict Profile Header */}
+                <ProfileHeader
+                    user={user}
+                    isOwnProfile={isOwnProfile}
+                    isFollowing={isFollowing}
+                    followLoading={followLoading}
+                    onFollowToggle={handleFollowToggle}
+                    onEditBanner={() => router.push('/banner-search')}
+                    onShowPFP={() => setShowFullPFP(true)}
+                />
 
                 <View style={styles.wrapper}>
-                    {/* Header: Avatar + Stats */}
-                    <View style={styles.headerGrid}>
-                        <View style={styles.avatarArea}>
-                            <View>
-                                <Pressable
-                                    style={styles.avatarCircle}
-                                    onPress={() => setShowFullPFP(true)}
-                                >
-                                    {user?.photoURL ? (
-                                        <Image source={{ uri: user.photoURL }} style={styles.avatarImg} />
-                                    ) : (
-                                        <Text style={styles.avatarInitial}>{user?.username?.charAt(0).toUpperCase()}</Text>
-                                    )}
-                                </Pressable>
-                                {!isOwnProfile && (
-                                    <Animated.View style={[styles.followIconContainer, animatedFollowStyle]}>
-                                        <Pressable
-                                            onPress={handleFollowToggle}
-                                            disabled={followLoading}
-                                            style={({ pressed }) => [
-                                                styles.followIconPressable,
-                                                { transform: [{ scale: pressed ? 0.92 : 1 }] }
-                                            ]}
-                                        >
-                                            {followLoading ? (
-                                                <ActivityIndicator size="small" color="#000" />
-                                            ) : (
-                                                <MaterialIcons
-                                                    name={isFollowing ? "check-circle" : "add-circle"}
-                                                    size={32}
-                                                    color="#FFCC00"
-                                                />
-                                            )}
-                                        </Pressable>
-                                    </Animated.View>
-                                )}
-                            </View>
-                            <View style={styles.socialIcons}>
-                                {user?.instaLink && (
-                                    <TouchableOpacity onPress={() => {
-                                        const url = user.instaLink.startsWith('http') ? user.instaLink : `https://instagram.com/${user.instaLink}`;
-                                        Linking.openURL(url);
-                                    }}>
-                                        <Instagram color="#888" size={18} />
-                                    </TouchableOpacity>
-                                )}
-                                {(user?.twitterLink || user?.twitter) && (
-                                    <TouchableOpacity onPress={() => {
-                                        const handle = user.twitterLink || user.twitter;
-                                        const url = handle.startsWith('http') ? handle : `https://x.com/${handle}`;
-                                        Linking.openURL(url);
-                                    }}>
-                                        <FontAwesome6 name="x-twitter" size={16} color="#888" />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </View>
+                    <View style={styles.detailsArea}>
+                        {/* Bio First (Below Name) */}
+                        {user?.bio ? (
+                            <Text style={styles.bio}>{user.bio}</Text>
+                        ) : null}
 
-                        <View style={styles.detailsArea}>
-                            <View style={styles.usernameRow}>
-                                <Text style={styles.username} numberOfLines={1}>{user?.username || 'User'}</Text>
+                        {/* Stats Below Bio - Left Aligned */}
+                        <View style={styles.statsContainer}>
+                            <View style={styles.statBox}>
+                                <Text style={styles.statNum}>
+                                    {profileData?.diary ?
+                                        new Set(profileData.diary
+                                            .filter((d: any) => d.date && d.date.startsWith(new Date().getFullYear().toString()))
+                                            .map((d: any) => `${d.tmdbId}-${d.seasonNumber}`)
+                                        ).size : 0
+                                    }
+                                </Text>
+                                <Text style={styles.statLabel}>THIS YEAR</Text>
                             </View>
 
-                            <View style={styles.statsContainer}>
-                                <View style={styles.statBox}>
-                                    <Text style={styles.statNum}>
-                                        {profileData?.diary ?
-                                            new Set(profileData.diary
-                                                .filter((d: any) => d.date && d.date.startsWith(new Date().getFullYear().toString()))
-                                                .map((d: any) => `${d.tmdbId}-${d.seasonNumber}`)
-                                            ).size : 0
-                                        }
-                                    </Text>
-                                    <Text style={styles.statLabel}>THIS YEAR</Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.statBox}
-                                    onPress={() => {
-                                        triggerSelection();
-                                        router.push({
-                                            pathname: '/profile-section',
-                                            params: { uid: targetUid, type: 'Followers' }
-                                        } as any);
-                                    }}
-                                >
+                            <TouchableOpacity
+                                style={styles.statBox}
+                                onPress={() => {
+                                    triggerSelection();
+                                    router.push({
+                                        pathname: '/profile-section',
+                                        params: { uid: targetUid, type: 'Following' }
+                                    } as any);
+                                }}
+                            >
+                                <Text style={styles.statNum}>{user?.following?.length || 0}</Text>
+                                <Text style={styles.statLabel}>FOLLOWING</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.statBox}
+                                onPress={() => {
+                                    triggerSelection();
+                                    if (isOwnProfile && authUserData?.hasUnseenFollowerStat) {
+                                        updateDoc(doc(db, 'users', currentUser.uid), {
+                                            hasUnseenFollowerStat: false
+                                        }).catch(() => { });
+                                    }
+                                    router.push({
+                                        pathname: '/profile-section',
+                                        params: { uid: targetUid, type: 'Followers' }
+                                    } as any);
+                                }}
+                            >
+                                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                                     <Text style={styles.statNum}>{user?.followers?.length || 0}</Text>
-                                    <Text style={styles.statLabel}>FOLLOWERS</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.statBox}
-                                    onPress={() => {
-                                        triggerSelection();
-                                        router.push({
-                                            pathname: '/profile-section',
-                                            params: { uid: targetUid, type: 'Following' }
-                                        } as any);
-                                    }}
-                                >
-                                    <Text style={styles.statNum}>{user?.following?.length || 0}</Text>
-                                    <Text style={styles.statLabel}>FOLLOWING</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {user?.bio && <Text style={[styles.bio, { paddingHorizontal: 16 }]}>{user.bio}</Text>}
+                                    {isOwnProfile && authUserData?.hasUnseenFollowerStat && (
+                                        <View style={styles.statDot} />
+                                    )}
+                                </View>
+                                <Text style={styles.statLabel}>FOLLOWERS</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -413,6 +418,37 @@ export default function ProfileScreen() {
                     </View>
                 </Pressable>
             )}
+
+            {/* DELETE CONFIRMATION MODAL */}
+            <Modal
+                visible={showDeleteModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDeleteModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.landscapePopup}>
+                        <View style={[styles.popupContent, { marginTop: 15, marginBottom: 15, paddingHorizontal: 10 }]}>
+                            <Text style={styles.deleteConfirmText}>are you sure want to delete this series from favorites</Text>
+                        </View>
+
+                        <View style={styles.modalActionRow}>
+                            <Pressable
+                                style={[styles.confirmBtn, { backgroundColor: '#000' }]}
+                                onPress={confirmDelete}
+                            >
+                                <Text style={[styles.confirmBtnText, { color: '#FFC107' }]}>YES</Text>
+                            </Pressable>
+                            <Pressable
+                                style={[styles.confirmBtn, { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#000' }]}
+                                onPress={() => setShowDeleteModal(false)}
+                            >
+                                <Text style={[styles.confirmBtnText, { color: '#000' }]}>NO</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -420,44 +456,22 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-    bannerContainer: { width: width, aspectRatio: 2.5 / 1, backgroundColor: '#000', position: 'relative', overflow: 'hidden' },
-    bannerImage: { width: '100%', height: '100%' },
-    bannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.1)' },
-    bannerPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    bannerTitle: { color: '#444', fontWeight: 'bold', fontSize: 16 },
-    wrapper: { width: '100%', zIndex: 10, marginTop: 10 },
-    headerGrid: { flexDirection: 'row', gap: 10, marginBottom: 20, paddingHorizontal: 16 },
-    avatarArea: { width: 100, alignItems: 'center', gap: 12 },
-    avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#1a1a1a', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
-    avatarImg: { width: '100%', height: '100%' },
-    avatarInitial: { color: '#888', fontSize: 32, fontWeight: 'bold' },
-    socialIcons: { flexDirection: 'row', gap: 15 },
-    detailsArea: { flex: 1, paddingTop: 10 },
-    usernameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-    username: { color: '#FFF', fontSize: 24, fontWeight: '900', flexShrink: 1 },
-    followIconContainer: {
-        position: 'absolute',
-        bottom: -5,
-        alignSelf: 'center',
-        backgroundColor: '#000',
-        borderRadius: 20,
-        padding: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.5,
-        shadowRadius: 4,
-        elevation: 5,
+    wrapper: { width: '100%', zIndex: 10 },
+    statsContainer: { flexDirection: 'row', gap: 24, marginBottom: 15, marginTop: 15, justifyContent: 'flex-start' },
+    detailsArea: { paddingHorizontal: 16, marginTop: 5 },
+    statBox: { alignItems: 'flex-start' },
+    statNum: { color: '#FFF', fontSize: 18, fontWeight: 'bold' }, // Clean bold stats
+    statDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#FF5722',
+        marginLeft: 4,
+        marginTop: 4,
     },
-    followIconPressable: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    statsContainer: { flexDirection: 'row', gap: 15, marginBottom: 15 },
-    statBox: { alignItems: 'center' },
-    statNum: { color: '#FFF', fontSize: 16, fontWeight: '900' },
-    statLabel: { color: '#888', fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
-    bio: { color: '#888', fontSize: 13, lineHeight: 18 },
-    tabsNav: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#222', marginTop: 10, marginBottom: 20, width: '100%' },
+    statLabel: { color: '#666', fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+    bio: { color: '#CCC', fontSize: 14, lineHeight: 20, textAlign: 'left', marginTop: 0 }, // Clean left bio
+    tabsNav: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#222', marginTop: 20, marginBottom: 20, width: '100%' },
     tabBtn: { paddingHorizontal: 15, paddingVertical: 15, borderBottomWidth: 3, borderBottomColor: 'transparent' },
     tabBtnActive: { borderBottomColor: '#FFCC00' },
     tabBtnText: { color: '#888', fontWeight: '900', fontSize: 13 },
@@ -465,7 +479,7 @@ const styles = StyleSheet.create({
     tabsContent: { minHeight: 300 },
     tabSection: { gap: 20 },
     sectionLabel: { color: '#888', fontWeight: '900', fontSize: 13, letterSpacing: 0.5, marginBottom: 10 },
-    favoritesGrid: { flexDirection: 'row', gap: 12, paddingHorizontal: 16 },
+    favoritesGrid: { flexDirection: 'row', gap: 12, display: 'flex' }, // removed paddingHorizontal from here if it conflicts, checking usage
     favBox: { width: 140, aspectRatio: 2 / 3, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' },
     fullPfpOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 1000, justifyContent: 'center', alignItems: 'center' },
     fullPfpModal: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
@@ -483,5 +497,63 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 9999,
+    },
+    deleteFavBtn: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        padding: 6,
+        borderRadius: 8,
+        zIndex: 10
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    landscapePopup: {
+        backgroundColor: '#FFC107', // Dark Yellow
+        width: 300,
+        borderRadius: 24,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10
+    },
+    popupContent: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: 20,
+        gap: 12
+    },
+    deleteConfirmText: {
+        color: '#000',
+        fontSize: 14,
+        fontFamily: 'ArchivoBlack-Regular',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        textAlign: 'center'
+    },
+    modalActionRow: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+        marginTop: 5
+    },
+    confirmBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 30,
+        alignItems: 'center'
+    },
+    confirmBtnText: {
+        fontSize: 13,
+        fontFamily: 'ArchivoBlack-Regular'
     },
 });

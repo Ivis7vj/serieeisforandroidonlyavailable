@@ -17,21 +17,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { MoreVertical, Plus, Instagram, Twitter, X, ArrowLeft, Star, MessageCircle } from 'lucide-react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
-import { MaterialIcons, FontAwesome6 } from '@expo/vector-icons';
-
 import { useAuth } from '@/context/auth-context';
-import { db, storage } from '@/utils/firebase';
+import { db } from '@/utils/firebase';
 import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, startAfter } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getUserProfileData } from '@/utils/profile-service';
 import ActivityFeed from '@/components/activity-feed';
 import { getResolvedPosterUrl } from '@/utils/poster-resolver';
 import { triggerSelection, triggerImpact } from '@/utils/haptics';
 import { followUser, unfollowUser, isFollowingUser } from '@/utils/follow-service';
 import ReviewItem from '@/components/series/ReviewItem';
+import ProfileHeader from '@/components/ProfileHeader';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -98,15 +94,7 @@ export default function PublicProfileScreen() {
     const [activeTab, setActiveTab] = useState('Profile');
     const [showFullPFP, setShowFullPFP] = useState(false);
 
-    const followIconScale = useSharedValue(1);
 
-    useEffect(() => {
-        followIconScale.value = withSequence(withTiming(1.2), withSpring(1));
-    }, [isFollowing]);
-
-    const animatedFollowStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: followIconScale.value }]
-    }));
 
     const loadData = useCallback(async (isRefreshing = false) => {
         if (!targetUid) return;
@@ -156,34 +144,7 @@ export default function PublicProfileScreen() {
         }
     };
 
-    const handleEditPFP = async () => {
-        triggerSelection();
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-        });
-        if (!result.canceled && result.assets[0].uri) {
-            uploadPFP(result.assets[0].uri);
-        }
-    };
 
-    const uploadPFP = async (uri: string) => {
-        if (!currentUser) return;
-        try {
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            const filename = `profile_${currentUser.uid}_${Date.now()}.jpg`;
-            const storageRef = ref(storage, `profile_photos/${filename}`);
-            await uploadBytes(storageRef, blob);
-            const downloadURL = await getDownloadURL(storageRef);
-            await updateDoc(doc(db, 'users', currentUser.uid), { photoURL: downloadURL });
-            loadData(true);
-        } catch (e) {
-            Alert.alert("Error", "Failed to upload photo.");
-        }
-    };
 
     const renderTabContent = () => {
         if (!profileData) return null;
@@ -211,7 +172,7 @@ export default function PublicProfileScreen() {
                         >
                             {fav ? (
                                 <Image
-                                    source={{ uri: getResolvedPosterUrl(String(fav.id || fav.tmdbId), fav.poster_path, isOwnProfile ? globalPosters : userPosters, 'w342') || undefined }}
+                                    source={{ uri: getResolvedPosterUrl(String(fav.id || fav.tmdbId), fav.poster_path, undefined, 'w342') || undefined }}
                                     style={StyleSheet.absoluteFillObject}
                                     contentFit="cover"
                                 />
@@ -248,129 +209,65 @@ export default function PublicProfileScreen() {
                     </View>
                 )}
 
-                {/* Banner Section */}
-                <Pressable
-                    style={styles.bannerContainer}
-                    onPress={() => isOwnProfile && router.push('/banner-search')}
-                >
-                    {user?.bannerBackdropPath ? (
-                        <Image
-                            key={`banner-${user.bannerBackdropPath}`}
-                            source={{ uri: `https://image.tmdb.org/t/p/w1280${user.bannerBackdropPath}` }}
-                            style={styles.bannerImage}
-                            contentFit="cover"
-                            transition={300}
-                        />
-                    ) : (
-                        <View style={styles.bannerPlaceholder}>
-                            <Text style={styles.bannerTitle}>No banner set</Text>
-                        </View>
-                    )}
-                    <View style={styles.bannerOverlay} />
-                </Pressable>
+                {/* New Strict Profile Header */}
+                <ProfileHeader
+                    user={user}
+                    isOwnProfile={isOwnProfile}
+                    isFollowing={isFollowing}
+                    followLoading={followLoading}
+                    onFollowToggle={handleFollowToggle}
+                    onEditBanner={() => isOwnProfile && router.push('/banner-search')}
+                    onShowPFP={() => setShowFullPFP(true)}
+                />
 
                 <View style={styles.wrapper}>
-                    {/* Header: Avatar + Stats */}
-                    <View style={styles.headerGrid}>
-                        <View style={styles.avatarArea}>
-                            <View>
-                                <Pressable style={styles.avatarCircle} onPress={() => setShowFullPFP(true)}>
-                                    {user?.photoURL ? (
-                                        <Image source={{ uri: user.photoURL }} style={styles.avatarImg} />
-                                    ) : (
-                                        <Text style={styles.avatarInitial}>{user?.username?.charAt(0).toUpperCase()}</Text>
-                                    )}
-                                </Pressable>
-                                {!isOwnProfile && (
-                                    <Animated.View style={[styles.followIconContainer, animatedFollowStyle]}>
-                                        <Pressable
-                                            onPress={handleFollowToggle}
-                                            disabled={followLoading}
-                                            style={({ pressed }) => [
-                                                styles.followIconPressable,
-                                                { transform: [{ scale: pressed ? 0.92 : 1 }] }
-                                            ]}
-                                        >
-                                            {followLoading ? (
-                                                <ActivityIndicator size="small" color="#000" />
-                                            ) : (
-                                                <MaterialIcons
-                                                    name={isFollowing ? "check-circle" : "add-circle"}
-                                                    size={32}
-                                                    color="#FFCC00"
-                                                />
-                                            )}
-                                        </Pressable>
-                                    </Animated.View>
-                                )}
-                            </View>
-                            <View style={styles.socialIcons}>
-                                {user?.instaLink && (
-                                    <TouchableOpacity onPress={() => {
-                                        const url = user.instaLink.startsWith('http') ? user.instaLink : `https://instagram.com/${user.instaLink}`;
-                                        Linking.openURL(url);
-                                    }}>
-                                        <Instagram color="#888" size={18} />
-                                    </TouchableOpacity>
-                                )}
-                                {(user?.twitterLink || user?.twitter) && (
-                                    <TouchableOpacity onPress={() => {
-                                        const handle = user.twitterLink || user.twitter;
-                                        const url = handle.startsWith('http') ? handle : `https://x.com/${handle}`;
-                                        Linking.openURL(url);
-                                    }}>
-                                        <FontAwesome6 name="x-twitter" size={16} color="#888" />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </View>
+                    <View style={styles.detailsArea}>
+                        {/* Bio First (Below Name) - Same as Profile.tsx */}
+                        {user?.bio ? (
+                            <Text style={styles.bio}>{user.bio}</Text>
+                        ) : null}
 
-                        <View style={styles.detailsArea}>
-                            <View style={styles.usernameRow}>
-                                <Text style={styles.username} numberOfLines={1}>{user?.username || 'User'}</Text>
+                        {/* Stats Below Bio - Left Aligned */}
+                        <View style={styles.statsContainer}>
+                            <View style={styles.statBox}>
+                                <Text style={styles.statNum}>
+                                    {profileData?.diary ?
+                                        new Set(profileData.diary
+                                            .filter((d: any) => d.date && d.date.startsWith(new Date().getFullYear().toString()))
+                                            .map((d: any) => `${d.tmdbId}-${d.seasonNumber}`)
+                                        ).size : 0
+                                    }
+                                </Text>
+                                <Text style={styles.statLabel}>THIS YEAR</Text>
                             </View>
 
-                            <View style={styles.statsContainer}>
-                                <View style={styles.statBox}>
-                                    <Text style={styles.statNum}>
-                                        {profileData?.diary ?
-                                            new Set(profileData.diary
-                                                .filter((d: any) => d.date && d.date.startsWith(new Date().getFullYear().toString()))
-                                                .map((d: any) => `${d.tmdbId}-${d.seasonNumber}`)
-                                            ).size : 0
-                                        }
-                                    </Text>
-                                    <Text style={styles.statLabel}>THIS YEAR</Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={styles.statBox}
-                                    onPress={() => {
-                                        triggerSelection();
-                                        router.push({
-                                            pathname: '/profile-section',
-                                            params: { uid: targetUid, type: 'Followers' }
-                                        } as any);
-                                    }}
-                                >
-                                    <Text style={styles.statNum}>{user?.followers?.length || 0}</Text>
-                                    <Text style={styles.statLabel}>FOLLOWERS</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.statBox}
-                                    onPress={() => {
-                                        triggerSelection();
-                                        router.push({
-                                            pathname: '/profile-section',
-                                            params: { uid: targetUid, type: 'Following' }
-                                        } as any);
-                                    }}
-                                >
-                                    <Text style={styles.statNum}>{user?.following?.length || 0}</Text>
-                                    <Text style={styles.statLabel}>FOLLOWING</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <TouchableOpacity
+                                style={styles.statBox}
+                                onPress={() => {
+                                    triggerSelection();
+                                    router.push({
+                                        pathname: '/profile-section',
+                                        params: { uid: targetUid, type: 'Following' }
+                                    } as any);
+                                }}
+                            >
+                                <Text style={styles.statNum}>{user?.following?.length || 0}</Text>
+                                <Text style={styles.statLabel}>FOLLOWING</Text>
+                            </TouchableOpacity>
 
-                            {user?.bio && <Text style={[styles.bio, { paddingHorizontal: 16 }]}>{user.bio}</Text>}
+                            <TouchableOpacity
+                                style={styles.statBox}
+                                onPress={() => {
+                                    triggerSelection();
+                                    router.push({
+                                        pathname: '/profile-section',
+                                        params: { uid: targetUid, type: 'Followers' }
+                                    } as any);
+                                }}
+                            >
+                                <Text style={styles.statNum}>{user?.followers?.length || 0}</Text>
+                                <Text style={styles.statLabel}>FOLLOWERS</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -420,45 +317,14 @@ export default function PublicProfileScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000' },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-    bannerContainer: { width: width, aspectRatio: 2.5 / 1, backgroundColor: '#000', position: 'relative', overflow: 'hidden' },
-    bannerImage: { width: '100%', height: '100%' },
-    bannerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.1)' },
-    bannerPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    bannerTitle: { color: '#444', fontWeight: 'bold', fontSize: 16 },
-    backBtn: { position: 'absolute', top: 0, left: 10, zIndex: 100, padding: 10 },
+    detailsArea: { paddingHorizontal: 16, marginTop: 5 },
     wrapper: { width: '100%', zIndex: 10, marginTop: 10 },
-    headerGrid: { flexDirection: 'row', gap: 10, marginBottom: 20, paddingHorizontal: 16 },
-    avatarArea: { width: 100, alignItems: 'center', gap: 12 },
-    avatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#1a1a1a', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
-    avatarImg: { width: '100%', height: '100%' },
-    avatarInitial: { color: '#888', fontSize: 32, fontWeight: 'bold' },
-    socialIcons: { flexDirection: 'row', gap: 15 },
-    detailsArea: { flex: 1, paddingTop: 10 },
-    usernameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-    username: { color: '#FFF', fontSize: 24, fontWeight: '900', flexShrink: 1 },
-    followIconContainer: {
-        position: 'absolute',
-        bottom: -5,
-        alignSelf: 'center',
-        backgroundColor: '#000',
-        borderRadius: 20,
-        padding: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.5,
-        shadowRadius: 4,
-        elevation: 5,
-    },
-    followIconPressable: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    statsContainer: { flexDirection: 'row', gap: 15, marginBottom: 15 },
+    statsContainer: { flexDirection: 'row', gap: 24, marginBottom: 15, justifyContent: 'flex-start' },
     statBox: { alignItems: 'center' },
-    statNum: { color: '#FFF', fontSize: 16, fontWeight: '900' },
-    statLabel: { color: '#888', fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
-    bio: { color: '#888', fontSize: 13, lineHeight: 18 },
-    tabsNav: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#222', marginTop: 10, marginBottom: 20, width: '100%' },
+    statNum: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+    statLabel: { color: '#666', fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
+    bio: { color: '#CCC', fontSize: 14, lineHeight: 20, textAlign: 'left', marginTop: 0 },
+    tabsNav: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#222', marginTop: 20, marginBottom: 20, width: '100%' },
     tabBtn: { paddingHorizontal: 15, paddingVertical: 15, borderBottomWidth: 3, borderBottomColor: 'transparent' },
     tabBtnActive: { borderBottomColor: '#FFCC00' },
     tabBtnText: { color: '#888', fontWeight: '900', fontSize: 13 },

@@ -8,6 +8,7 @@ import {
     Pressable,
     ActivityIndicator,
     Alert,
+    Linking,
     Modal as NativeModal,
     LayoutAnimation,
     Platform,
@@ -127,7 +128,25 @@ export default function SeriesDetailsScreen() {
     const [isEditButtonGlowing, setIsEditButtonGlowing] = useState(false);
     const [prevId, setPrevId] = useState(id);
     const [activeBarIdx, setActiveBarIdx] = useState<number | null>(null);
-    const [showLimitWarning, setShowLimitWarning] = useState(false);
+
+
+
+    // RATINGS SWIPE STATE
+    const [isSwipingRatings, setIsSwipingRatings] = useState(false);
+    const [ratingsPage, setRatingsPage] = useState(0);
+    const ratingsListRef = useRef<ScrollView>(null);
+    const nudgeAnim = useRef(new Animated.Value(0)).current;
+
+    // NUDGE ANIMATION ON MOUNT
+    useEffect(() => {
+        setTimeout(() => {
+            Animated.sequence([
+                Animated.timing(nudgeAnim, { toValue: -5, duration: 200, useNativeDriver: true }),
+                Animated.timing(nudgeAnim, { toValue: 5, duration: 200, useNativeDriver: true }),
+                Animated.timing(nudgeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+            ]).start();
+        }, 1000); // 1s delay
+    }, []);
 
     // Immediate state reset on ID change to prevent stale data
     if (id !== prevId) {
@@ -258,12 +277,6 @@ export default function SeriesDetailsScreen() {
     const centerHeartRotate = useRef(new Animated.Value(0)).current;
     const centerHeartY = useRef(new Animated.Value(0)).current;
 
-    const canUnlockPoster = useMemo(() => {
-        if (!userData?.lastPosterEditAt) return true;
-        const diff = Date.now() - new Date(userData.lastPosterEditAt).getTime();
-        return diff > 24 * 60 * 60 * 1000;
-    }, [userData?.lastPosterEditAt]);
-
     const handleCelebClose = () => {
         setShowCeleb(false);
         setShowEditHint(true);
@@ -387,15 +400,6 @@ export default function SeriesDetailsScreen() {
             isFirstLoad.current = false;
         }, [id, currentUser, details, syncUser]) // Removed params from deps
     );
-
-    // DAILY LIMIT LOGIC
-    const checkDailyLimit = () => {
-        if (!userData || !userData.lastPosterEditAt) return false; // Not locked
-        const lastEdit = new Date(userData.lastPosterEditAt);
-        const now = new Date();
-        const diffHours = (now.getTime() - lastEdit.getTime()) / (1000 * 60 * 60);
-        return diffHours < 24; // TRUE if locked (less than 24h)
-    };
 
     // FETCH SERIES DATA
     useEffect(() => {
@@ -776,9 +780,13 @@ export default function SeriesDetailsScreen() {
         const inList = episodeWatchlistIDs.includes(ep.id);
 
         if (inList) {
-            await watchlistService.removeFromWatchlist(currentUser.uid, ep.id);
+            // OPTIMISTIC UPDATE: Remove immediately
             setEpisodeWatchlistIDs(prev => prev.filter(pid => pid !== ep.id));
+            await watchlistService.removeFromWatchlist(currentUser.uid, ep.id);
         } else {
+            // OPTIMISTIC UPDATE: Add immediately
+            setEpisodeWatchlistIDs(prev => [...prev, ep.id]);
+
             // LIST EPISODE -> Add to List AND Remove from Watched (Strict Rule 4)
             const itemToSave = {
                 id: ep.id,
@@ -1016,7 +1024,7 @@ export default function SeriesDetailsScreen() {
         };
     }, [details, reviewsData, id, selectedSeason]);
 
-    const renderStars = (rating: number, size: number = 10) => {
+    const renderStars = (rating: number, size: number = 10, color: string = "#FFCC00") => {
         return Array.from({ length: 5 }).map((_, si) => {
             const starVal = si + 1;
             const isFull = rating >= starVal;
@@ -1024,14 +1032,14 @@ export default function SeriesDetailsScreen() {
 
             return (
                 <View key={si} style={{ width: size, height: size }}>
-                    <Star size={size} color="#FFCC00" fill="transparent" />
+                    <Star size={size} color={color} fill="transparent" />
                     {isFull ? (
                         <View style={{ position: 'absolute' }}>
-                            <Star size={size} color="#FFCC00" fill="#FFCC00" />
+                            <Star size={size} color={color} fill={color} />
                         </View>
                     ) : isHalf ? (
                         <View style={{ position: 'absolute', width: size / 2, overflow: 'hidden' }}>
-                            <Star size={size} color="#FFCC00" fill="#FFCC00" />
+                            <Star size={size} color={color} fill={color} />
                         </View>
                     ) : null}
                 </View>
@@ -1149,12 +1157,8 @@ export default function SeriesDetailsScreen() {
                                 }}
                                 onPress={(e) => {
                                     e.stopPropagation();
-                                    if (canUnlockPoster) {
-                                        triggerSelection();
-                                        router.push(`/poster/${details.id}/${selectedSeason}`);
-                                    } else {
-                                        setShowLimitWarning(true);
-                                    }
+                                    triggerSelection();
+                                    router.push(`/poster/${details.id}/${selectedSeason}`);
                                 }}
                             >
                                 <Edit2 size={20} color="#FFF" />
@@ -1435,73 +1439,171 @@ export default function SeriesDetailsScreen() {
                     releaseYear={details.first_air_date?.split('-')[0]}
                 />
 
-                {/* 2. RATINGS SECTION (Moved here) */}
-                <View style={styles.ratingsSection}>
-                    <Text style={styles.ratingsHeader}>RATINGS</Text>
-                    <View style={styles.histogramContainer}>
-                        {/* Indicator Popup */}
-                        {activeBarIdx !== null && (
-                            <View style={[
-                                styles.barIndicator,
-                                {
-                                    left: 30 + (activeBarIdx * (width - 140) / 10) + ((width - 140) / 10) / 2
-                                }
-                            ]}>
-                                <Text style={styles.indicatorCount}>
-                                    {seasonStats.distribution[activeBarIdx]} users
-                                </Text>
-                                <View style={styles.indicatorStars}>
-                                    {renderStars((activeBarIdx + 1) * 0.5)}
-                                </View>
-                            </View>
-                        )}
-
-                        <View style={styles.histogramWrapper}>
-                            <View style={styles.histogramLeft}>
-                                <Star size={12} color="#FFCC00" fill="#FFCC00" />
-                            </View>
-                            <View style={styles.histogramBars}>
-                                {(seasonStats.distribution || Array(10).fill(0)).map((count, i) => {
-                                    const maxCount = Math.max(...(seasonStats.distribution || []), 1);
-                                    const barHeight = Math.max((count / maxCount) * 65, 4); // Increased height multiplier to 65
-                                    return (
-                                        <Pressable
-                                            key={i}
-                                            onPressIn={() => { triggerSelection(); setActiveBarIdx(i); }}
-                                            onPressOut={() => setActiveBarIdx(null)}
-                                            style={({ pressed }) => [
-                                                {
-                                                    height: 70, // Increased hit area height for taller bars
-                                                    justifyContent: 'flex-end',
-                                                    opacity: pressed || activeBarIdx === i ? 0.6 : 1
-                                                }
-                                            ]}
-                                        >
-                                            <View
-                                                style={[
-                                                    styles.histBar,
-                                                    {
-                                                        height: barHeight,
-                                                        backgroundColor: '#FFCC00',
-                                                        width: (width - 140) / 10,
-                                                        borderRadius: 0,
-                                                        borderWidth: 0.5,
-                                                        borderColor: 'rgba(0,0,0,0.5)'
-                                                    }
-                                                ]}
-                                            />
-                                        </Pressable>
-                                    );
-                                })}
-                            </View>
-                            <View style={styles.histogramRight}>
-                                <Text style={styles.ratingDisplay}>{seasonStats.avg}</Text>
-                                <View style={styles.ratingStars}>
-                                    {renderStars(parseFloat(seasonStats.avg), 12)}
-                                </View>
+                {/* 2. RATINGS SECTION (Swipeable) */}
+                <View style={[styles.ratingsSection]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={[styles.ratingsHeader, { marginBottom: 0 }]}>RATINGS</Text>
+                            {/* DOT INDICATORS */}
+                            <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                                <View style={{
+                                    width: 4,
+                                    height: 4,
+                                    borderRadius: 2,
+                                    backgroundColor: ratingsPage === 0 ? '#FFF' : '#333'
+                                }} />
+                                <View style={{
+                                    width: 4,
+                                    height: 4,
+                                    borderRadius: 2,
+                                    backgroundColor: ratingsPage === 1 ? '#FFF' : '#333'
+                                }} />
                             </View>
                         </View>
+                        <Text style={{ color: '#666', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>
+                            {ratingsPage === 0 ? 'SERIEE' : 'TMDB'}
+                        </Text>
                     </View>
+
+                    <Animated.View style={[styles.histogramContainer, { transform: [{ translateX: nudgeAnim }] }]}>
+                        <ScrollView
+                            ref={ratingsListRef}
+                            horizontal
+                            pagingEnabled
+                            showsHorizontalScrollIndicator={false}
+                            scrollEnabled={true}
+                            onScroll={(e) => {
+                                const page = Math.round(e.nativeEvent.contentOffset.x / (width - 40));
+                                if (page !== ratingsPage) {
+                                    setRatingsPage(page);
+                                }
+                            }}
+                            scrollEventThrottle={16}
+                            snapToInterval={width - 40}
+                            decelerationRate="fast"
+                        >
+                            {/* PAGE 1: SERIEE (Current) */}
+                            <View style={{ width: width - 40, marginRight: 0 }}>
+                                {activeBarIdx !== null && (
+                                    <View style={[
+                                        styles.barIndicator,
+                                        {
+                                            left: 30 + (activeBarIdx * (width - 140) / 10) + ((width - 140) / 10) / 2
+                                        }
+                                    ]}>
+                                        <Text style={styles.indicatorCount}>
+                                            {seasonStats.distribution[activeBarIdx]} users
+                                        </Text>
+                                        <View style={styles.indicatorStars}>
+                                            {renderStars((activeBarIdx + 1) * 0.5)}
+                                        </View>
+                                    </View>
+                                )}
+
+                                <View style={styles.histogramWrapper}>
+                                    <View style={styles.histogramLeft}>
+                                        <Star size={12} color="#FFCC00" fill="#FFCC00" />
+                                    </View>
+                                    <View style={styles.histogramBars}>
+                                        {(seasonStats.distribution || Array(10).fill(0)).map((count, i) => {
+                                            const maxCount = Math.max(...(seasonStats.distribution || []), 1);
+                                            const barHeight = Math.max((count / maxCount) * 65, 4);
+                                            return (
+                                                <Pressable
+                                                    key={i}
+                                                    onPressIn={() => { triggerSelection(); setActiveBarIdx(i); }}
+                                                    onPressOut={() => setActiveBarIdx(null)}
+                                                    style={({ pressed }) => [
+                                                        {
+                                                            height: 70,
+                                                            justifyContent: 'flex-end',
+                                                            opacity: pressed || activeBarIdx === i ? 0.6 : 1
+                                                        }
+                                                    ]}
+                                                >
+                                                    <View
+                                                        style={[
+                                                            styles.histBar,
+                                                            {
+                                                                height: barHeight,
+                                                                backgroundColor: '#FFCC00',
+                                                                width: (width - 140) / 10,
+                                                                borderRadius: 0,
+                                                                borderWidth: 0.5,
+                                                                borderColor: 'rgba(0,0,0,0.5)'
+                                                            }
+                                                        ]}
+                                                    />
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                    <View style={styles.histogramRight}>
+                                        <Text style={styles.ratingDisplay}>{seasonStats.avg}</Text>
+                                        <View style={styles.ratingStars}>
+                                            {renderStars(parseFloat(seasonStats.avg), 12)}
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* PAGE 2: TMDB (Mirrored) */}
+                            <Pressable
+                                style={{ width: width - 40 }}
+                                onPress={() => {
+                                    if (details?.id) {
+                                        Linking.openURL(`https://www.themoviedb.org/tv/${details.id}`);
+                                    }
+                                }}
+                            >
+                                <View style={styles.histogramWrapper}>
+                                    <View style={styles.histogramLeft}>
+                                        <Star size={12} color="#87CEEB" fill="#87CEEB" />
+                                    </View>
+                                    <View style={styles.histogramBars}>
+                                        {Array(10).fill(0).map((_, i) => {
+                                            const tmdbRating = details?.vote_average || 0;
+                                            const filledSegments = Math.round(tmdbRating); // 0-10
+                                            const isFilled = i < filledSegments;
+
+                                            return (
+                                                <View
+                                                    key={i}
+                                                    style={{
+                                                        height: 70,
+                                                        justifyContent: 'flex-end',
+                                                    }}
+                                                >
+                                                    <View
+                                                        style={[
+                                                            styles.histBar,
+                                                            {
+                                                                height: isFilled ? 45 : 4,
+                                                                backgroundColor: isFilled ? '#87CEEB' : '#222', // Sky Blue
+                                                                width: (width - 140) / 10,
+                                                                borderRadius: 0,
+                                                                borderWidth: 0.5,
+                                                                borderColor: 'rgba(0,0,0,0.5)'
+                                                            }
+                                                        ]}
+                                                    />
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                    <View style={styles.histogramRight}>
+                                        <Text style={[styles.ratingDisplay, { color: '#CCC' }]}>
+                                            {details?.vote_average ? (details.vote_average / 2).toFixed(1) : "—"}
+                                        </Text>
+                                        <View style={styles.ratingStars}>
+                                            {/* Green Stars for TMDB */}
+                                            {renderStars(details?.vote_average ? details.vote_average / 2 : 0, 12, "#46d369")}
+                                        </View>
+                                    </View>
+                                </View>
+                            </Pressable>
+                        </ScrollView>
+                    </Animated.View>
                 </View>
 
                 {/* 1.1 CHARACTERS (Season-wise via TVDB/TMDB) */}
@@ -1657,28 +1759,6 @@ export default function SeriesDetailsScreen() {
             </ NativeModal >
 
             <NativeModal
-                visible={showLimitWarning}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setShowLimitWarning(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.celebBox}>
-                        <AlertCircle color="#FFCC00" size={48} style={{ alignSelf: 'center', marginBottom: 10 }} />
-                        <Text style={styles.celebTitle}>
-                            LIMIT REACHED
-                        </Text>
-                        <Text style={styles.celebText}>
-                            You have changed poster for one day, wait for tomorrow.
-                        </Text>
-                        <Pressable style={styles.modalBtn} onPress={() => setShowLimitWarning(false)}>
-                            <Text style={styles.modalBtnText}>OK</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </NativeModal>
-
-            <NativeModal
                 visible={showCeleb}
                 transparent
                 animationType="fade"
@@ -1691,7 +1771,7 @@ export default function SeriesDetailsScreen() {
                             SEASON COMPLETED!
                         </Text>
                         <Text style={styles.celebText}>
-                            You unlocked poster customization.
+                            Share your stats with friends.
                         </Text>
                         <Pressable style={styles.modalBtn} onPress={() => {
                             setIsSeasonPopupOpen(false); // Close parent usage if any (though usually this is standalone)

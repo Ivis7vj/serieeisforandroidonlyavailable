@@ -33,6 +33,7 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
     const [isLoading, setIsLoading] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
+    const [showDeletePopup, setShowDeletePopup] = useState(false);
 
     // Edit State
     const [reviewText, setReviewText] = useState('');
@@ -120,61 +121,59 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
         }
     };
 
-    const handleDelete = async () => {
-        Alert.alert(
-            "Delete Entry",
-            "Are you sure you want to delete this diary entry?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        if (!entry) return;
-                        setIsLoading(true);
-                        const isEpisode = !!entry.episodeNumber || entry.isEpisode;
+    const confirmDelete = async () => {
+        if (!entry) return;
+        setIsLoading(true);
+        const isEpisode = !!entry.episodeNumber || entry.isEpisode;
 
-                        const tmdbId = entry.tmdbId || entry.tmdb_id;
-                        const seasonNumber = entry.seasonNumber || entry.season_number;
-                        const episodeNumber = entry.episodeNumber || entry.episode_number;
-                        const userId = entry.userId || currentUser?.uid;
+        const tmdbId = entry.tmdbId || entry.tmdb_id;
+        const seasonNumber = entry.seasonNumber || entry.season_number;
+        const episodeNumber = entry.episodeNumber || entry.episode_number;
+        const userId = entry.userId || currentUser?.uid;
 
-                        let res;
-                        if (isEpisode) {
-                            if (!tmdbId || seasonNumber === undefined || episodeNumber === undefined) {
-                                Alert.alert("Error", "Missing ID parameters for deletion.");
-                                setIsLoading(false);
-                                return;
-                            }
-                            res = await deleteEpisodeReview(userId, tmdbId, seasonNumber, episodeNumber);
-                        } else {
-                            if (!tmdbId || seasonNumber === undefined) {
-                                Alert.alert("Error", "Missing ID parameters for deletion.");
-                                setIsLoading(false);
-                                return;
-                            }
-                            res = await deleteSeasonReview(userId, tmdbId, seasonNumber);
-                            // Also delete from diary table
-                            await diaryService.deleteSeasonDiaryEntry(userId, tmdbId, seasonNumber);
-                        }
-
-                        setIsLoading(false);
-                        if (res.success) {
-                            onDelete(entry.id);
-                            reviewEvents.emitChange('delete', {
-                                id: entry.id,
-                                tmdbId,
-                                seasonNumber,
-                                episodeNumber
-                            });
-                            onClose();
-                        } else {
-                            Alert.alert("Error", "Failed to delete.");
-                        }
-                    }
+        let res;
+        try {
+            if (isEpisode) {
+                if (!tmdbId || seasonNumber === undefined || episodeNumber === undefined) {
+                    Alert.alert("Error", "Missing ID parameters for deletion.");
+                    setIsLoading(false);
+                    return;
                 }
-            ]
-        );
+                res = await deleteEpisodeReview(userId, tmdbId, seasonNumber, episodeNumber);
+            } else {
+                if (!tmdbId || seasonNumber === undefined) {
+                    Alert.alert("Error", "Missing ID parameters for deletion.");
+                    setIsLoading(false);
+                    return;
+                }
+                res = await deleteSeasonReview(userId, tmdbId, seasonNumber);
+                // Also delete from diary table
+                await diaryService.deleteSeasonDiaryEntry(userId, tmdbId, seasonNumber);
+            }
+
+            if (res.success) {
+                onDelete(entry.id);
+                reviewEvents.emitChange('delete', {
+                    id: entry.id,
+                    tmdbId,
+                    seasonNumber,
+                    episodeNumber
+                });
+                onClose();
+            } else {
+                Alert.alert("Error", "Failed to delete.");
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "An unexpected error occurred.");
+        } finally {
+            setIsLoading(false);
+            setShowDeletePopup(false);
+        }
+    };
+
+    const handleDelete = () => {
+        setShowDeletePopup(true);
     };
 
     // --- CUSTOM CALENDAR LOGIC ---
@@ -456,6 +455,33 @@ export default function DiaryDetailDrawer({ visible, entry, onClose, onUpdate, o
                         />
                     </KeyboardAvoidingView>
                 </View>
+
+                {showDeletePopup && (
+                    <View style={styles.popupOverlay}>
+                        <View style={styles.deletePopup}>
+                            <Pressable
+                                style={styles.closeBtn}
+                                onPress={() => setShowDeletePopup(false)}
+                            >
+                                <X size={20} color="#000" />
+                            </Pressable>
+
+                            <View style={styles.popupTextContainer}>
+                                <Text style={styles.popupTitle}>Delete this review permanently?</Text>
+                                <Text style={styles.popupDesc}>this action cant be restored</Text>
+                            </View>
+
+                            <View style={styles.popupActions}>
+                                <TouchableOpacity style={styles.popupBtn} onPress={() => setShowDeletePopup(false)}>
+                                    <Text style={styles.popupBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.popupBtn} onPress={confirmDelete}>
+                                    <Text style={styles.popupBtnText}>Delete</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                )}
             </View >
         </Modal >
     );
@@ -516,5 +542,72 @@ const styles = StyleSheet.create({
     saveBtnDisabled: { backgroundColor: '#ff4444', opacity: 1 },
     saveBtnText: { color: '#000', fontWeight: '900', fontSize: 14, letterSpacing: 1 },
     errorContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, padding: 8, backgroundColor: 'rgba(255, 68, 68, 0.1)', borderRadius: 8 },
-    errorText: { color: '#ff4444', fontSize: 12, fontWeight: 'bold' }
+    errorText: { color: '#ff4444', fontSize: 12, fontWeight: 'bold' },
+
+    // Popup Styles
+    popupOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 200
+    },
+    deletePopup: {
+        backgroundColor: '#FFC107', // Dark Yellow
+        width: 340, // Wider / Landscape
+        borderRadius: 20,
+        padding: 16, // Compact Padding
+        alignItems: 'center',
+        position: 'relative',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10
+    },
+    closeBtn: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        padding: 4,
+        zIndex: 10
+    },
+    popupTextContainer: {
+        marginBottom: 16,
+        alignItems: 'center',
+        marginTop: 5
+    },
+    popupTitle: {
+        color: '#000',
+        fontSize: 18,
+        fontFamily: 'ArchivoBlack-Regular',
+        marginBottom: 8,
+        textAlign: 'center',
+        letterSpacing: 0.5
+    },
+    popupDesc: {
+        color: '#444',
+        fontSize: 15,
+        fontFamily: 'ArchivoBlack-Regular',
+        textAlign: 'center',
+        lineHeight: 22
+    },
+    popupActions: {
+        width: '100%',
+        gap: 12,
+        flexDirection: 'row'
+    },
+    popupBtn: {
+        flex: 1,
+        backgroundColor: '#111', // Dark button
+        paddingVertical: 10, // Compact height
+        borderRadius: 30, // Pill shape
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    popupBtnText: {
+        color: '#FFF',
+        fontSize: 14,
+        fontFamily: 'ArchivoBlack-Regular'
+    }
 });

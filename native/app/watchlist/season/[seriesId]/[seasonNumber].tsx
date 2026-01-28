@@ -43,9 +43,15 @@ export default function WatchlistBasketScreen() {
         if (!currentUser || !seriesId) return;
         setLoading(true);
         try {
-            const fullList = await getWatchlist(currentUser.uid);
             const sid = parseInt(seriesId);
             const sno = parseInt(seasonNumber || '0');
+
+            // 1. Fetch full season details to get overviews and air dates
+            const seasonData = await tmdbApi.getSeasonDetails(sid, sno);
+            const tmdbEpisodes = seasonData?.episodes || [];
+
+            // 2. Fetch user's watchlist
+            const fullList = await getWatchlist(currentUser.uid);
 
             const basketEpisodes = fullList.filter((item: any) =>
                 (item.seriesId === sid || item.id === sid || item.tmdb_id === sid) &&
@@ -55,14 +61,20 @@ export default function WatchlistBasketScreen() {
                 String(item.episodeNumber).trim() !== ''
             );
 
-            basketEpisodes.sort((a: any, b: any) => a.episodeNumber - b.episodeNumber);
-            setEpisodes(basketEpisodes);
+            // 3. Enrich watchlist items with partial TMDB data
+            const enriched = basketEpisodes.map((item: any) => {
+                const tmdbEp = tmdbEpisodes.find((te: any) => te.episode_number === item.episodeNumber);
+                return {
+                    ...item,
+                    overview: tmdbEp?.overview || '',
+                    air_date: tmdbEp?.air_date || '',
+                    name: tmdbEp?.name || item.name || `Episode ${item.episodeNumber}`,
+                    still_path: tmdbEp?.still_path || item.still_path || item.poster_path
+                };
+            });
 
-            // Fallback name if API fails
-            if (!seriesName && basketEpisodes.length > 0) {
-                const name = basketEpisodes[0].name.split(' - ')[0]; // Heuristic
-                // setSeriesName(name); // Don't overwrite if API is running
-            }
+            enriched.sort((a: any, b: any) => a.episodeNumber - b.episodeNumber);
+            setEpisodes(enriched);
         } catch (error) {
             console.error(error);
         } finally {
@@ -103,6 +115,12 @@ export default function WatchlistBasketScreen() {
     };
 
     const renderItem = ({ item }: { item: any }) => {
+        const date = item.air_date ? new Date(item.air_date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        }) : '';
+
         return (
             <Pressable
                 style={styles.cardContainer}
@@ -116,15 +134,29 @@ export default function WatchlistBasketScreen() {
                 {/* Still Image */}
                 <View style={styles.imageContainer}>
                     <Image
-                        source={{ uri: getTMDBImageUrl(item.still_path || item.poster_path, 'w500') || undefined }}
+                        source={{ uri: getTMDBImageUrl(item.still_path, 'w500') || undefined }}
                         style={styles.stillImage}
                         contentFit="cover"
                     />
+                    <View style={styles.imgOverlay}>
+                        <View style={styles.epBadge}>
+                            <Text style={styles.epBadgeText}>E{item.episodeNumber}</Text>
+                        </View>
+                    </View>
                 </View>
 
-                {/* Info */}
+                {/* Info Container */}
                 <View style={styles.infoContainer}>
-                    <Text style={styles.epNumberText}>Episode {item.episodeNumber}</Text>
+                    <View style={styles.infoHeader}>
+                        <Text style={styles.epTitleText} numberOfLines={1}>{item.name}</Text>
+                        <Text style={styles.dateText}>{date}</Text>
+                    </View>
+
+                    {item.overview ? (
+                        <Text style={styles.overviewText} numberOfLines={3}>
+                            {item.overview}
+                        </Text>
+                    ) : null}
                 </View>
 
                 {/* Remove Button */}
@@ -136,7 +168,7 @@ export default function WatchlistBasketScreen() {
                     }}
                 >
                     <View style={styles.removeCircle}>
-                        <Minus color="#000" size={12} strokeWidth={4} />
+                        <Minus color="#000" size={14} strokeWidth={4} />
                     </View>
                 </Pressable>
             </Pressable>
@@ -186,97 +218,125 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 8,
-        height: 56,
-        borderBottomWidth: 1,
-        borderBottomColor: '#1a1a1a',
+        paddingHorizontal: 15,
+        height: 80,
+        backgroundColor: '#000',
     },
     backBtn: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10,
     },
     headerContent: {
         flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        position: 'relative',
-        height: '100%',
+        paddingLeft: 10
     },
     headerTitleContainer: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        zIndex: 5,
+        gap: 2
     },
     headerSeriesName: {
         color: 'white',
-        fontSize: 24,
-        fontWeight: '800',
-        letterSpacing: -0.5,
+        fontSize: 14,
+        fontWeight: 'bold',
+        opacity: 0.5,
+        textTransform: 'uppercase'
     },
     headerSeasonName: {
-        color: '#FFCC00', // Yellow for Season number contrast
-        fontSize: 20,
-        fontWeight: '800',
-        letterSpacing: -0.5,
+        color: '#FFCC00',
+        fontSize: 22,
+        fontWeight: 'bold',
     },
     listContent: {
-        paddingHorizontal: 0,
         paddingBottom: 40
     },
     cardContainer: {
-        flexDirection: 'column', // Stack Image then Text (As per Image: Image top, Text below)
-        marginBottom: 24,
-        position: 'relative'
+        marginBottom: 30,
+        position: 'relative',
+        paddingHorizontal: 0
     },
     imageContainer: {
         width: '100%',
         aspectRatio: 16 / 9,
-        backgroundColor: '#1a1a1a',
-        marginBottom: 8
+        backgroundColor: '#111',
+        borderRadius: 0,
+        overflow: 'hidden',
+        marginBottom: 12
     },
     stillImage: {
         width: '100%',
         height: '100%'
     },
-    infoContainer: {
-        paddingRight: 40, // Space for remove button
-        paddingHorizontal: 16, // Add some padding for text
+    imgOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        padding: 12,
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start'
     },
-    epNumberText: {
-        color: '#FFCC00',
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 2
+    epBadge: {
+        backgroundColor: '#FFCC00',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    epBadgeText: {
+        color: '#000',
+        fontSize: 12,
+        fontWeight: 'bold'
+    },
+    infoContainer: {
+        flex: 1,
+        paddingHorizontal: 15,
+    },
+    infoHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6
     },
     epTitleText: {
         color: 'white',
-        fontSize: 14,
-        fontWeight: '500',
+        fontSize: 18,
+        fontWeight: 'bold',
+        flex: 1,
+        marginRight: 10
+    },
+    dateText: {
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: 12,
+        fontWeight: 'bold'
+    },
+    overviewText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 13,
+        lineHeight: 18,
     },
     removeBtn: {
         position: 'absolute',
-        bottom: 15, // Align with text area roughly
-        right: 0,
-        padding: 5
+        top: 8,
+        right: 8,
+        padding: 5,
+        zIndex: 20
     },
     removeCircle: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: '#FF3B30', // Red
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FFF',
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#FF3B30' // Optional border
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 5
     },
     emptyText: {
-        color: '#666',
+        color: '#444',
         textAlign: 'center',
-        marginTop: 50
+        marginTop: 100,
+        fontSize: 16,
+        fontWeight: 'bold'
     }
 });

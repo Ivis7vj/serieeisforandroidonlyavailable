@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Linking, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { NewsService, NewsArticle } from '@/services/news-service';
+
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = width - 40; // Full width minus 20px padding on each side
+const CARD_MARGIN = 12;
 
 interface NewsSectionProps {
     seriesId: number;
@@ -61,13 +65,13 @@ export function NewsSection({ seriesId, seriesName, posterPath, backdrops }: New
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
-                snapToInterval={292} // 280 width + 12 margin
+                snapToInterval={CARD_WIDTH + CARD_MARGIN}
                 decelerationRate="fast"
             >
                 {displayNews.map((item, index) => (
                     <Pressable
                         key={index}
-                        style={styles.card}
+                        style={[styles.card, { width: CARD_WIDTH }]}
                         onPress={() => handlePress(item.sourceUrl)}
                     >
                         <Image
@@ -133,7 +137,7 @@ const styles = StyleSheet.create({
         paddingRight: 16,
     },
     card: {
-        width: 280,
+        width: 330,
         height: 110,
         flexDirection: 'row',
         backgroundColor: '#1a1a1a',
@@ -142,11 +146,11 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     cardImage: {
-        width: '45%',
+        width: '65%', // Increased to 65%
         height: '100%',
     },
     textContainer: {
-        width: '55%',
+        width: '35%', // Reduced to 35%
         padding: 10,
         justifyContent: 'center',
     },
