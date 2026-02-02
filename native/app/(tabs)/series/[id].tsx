@@ -16,6 +16,7 @@ import {
     Animated,
     Easing
 } from 'react-native';
+import { OneSignal } from 'react-native-onesignal';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, useFocusEffect, useNavigation } from 'expo-router';
@@ -651,6 +652,9 @@ export default function SeriesDetailsScreen() {
             const itemsToAdd = [seasonItem, ...episodeItems];
             await watchlistService.addToWatchlist(currentUser.uid, itemsToAdd);
 
+            // OneSignal Tagging
+            OneSignal.User.addTag(`series_${details.id}`, "true");
+
             // STRICT RELATION CHECK
             // If the season is RATED, we treat this as a "Rewatch" -> Do NOT unmark as watched.
             // If the season is NOT RATED, we apply strict logic -> Unmark as watched.
@@ -689,6 +693,9 @@ export default function SeriesDetailsScreen() {
                 // STRICT RELATION: Remove Season & All Episodes from Watchlist
                 const idsToRemove = [seasonDetails?.id || Number(`${details.id}${selectedSeason}`), ...episodes.map(e => e.id)];
                 await watchlistService.removeFromWatchlistBulk(currentUser.uid, idsToRemove);
+
+                // OneSignal Tagging
+                OneSignal.User.addTag(`series_${details.id}`, "true");
 
                 // Update Local State Optimistically
                 const newSet = new Set(episodeWatchedIDs);
@@ -751,6 +758,9 @@ export default function SeriesDetailsScreen() {
                 // Also remove from watchlist if watching
                 watchlistService.removeFromWatchlist(currentUser.uid, ep.id);
                 setEpisodeWatchlistIDs(prevList => prevList.filter(pid => pid !== ep.id));
+
+                // OneSignal Tagging
+                OneSignal.User.addTag(`series_${details.id}`, "true");
 
                 // MANUAL COMPLETION CHECK (Optional/Simplified)
                 if (seasonDetails && seasonDetails.episodes) {
@@ -960,6 +970,8 @@ export default function SeriesDetailsScreen() {
                 await likesService.unlikeSeason(currentUser.uid, details.id, selectedSeason);
             } else {
                 await likesService.likeSeason(currentUser.uid, details.id, selectedSeason);
+                // OneSignal Tagging
+                OneSignal.User.addTag(`series_${details.id}`, "true");
             }
             // REFRESH TO SYNC PROFILE REAL-TIME
             await refreshUserData();

@@ -2,20 +2,25 @@
   "expo": {
     "name": "Seriee",
     "slug": "native",
-    "version": "3.0.5",
-    "runtimeVersion": "3.0.5",
+    "version": "3.0.0",
+    "runtimeVersion": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "native",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.app.seriee"
     },
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
+    },
+    "notification": {
+      "icon": "./assets/images/notification_icon.png",
+      "color": "#FFCC00"
     },
     "android": {
       "adaptiveIcon": {
@@ -32,10 +37,7 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.WAKE_LOCK",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.FOREGROUND_SERVICE"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -45,8 +47,6 @@
     },
     "plugins": [
       "expo-router",
-      "expo-task-manager",
-      "expo-background-fetch",
       [
         "expo-splash-screen",
         {
@@ -69,19 +69,12 @@
       ],
       "expo-secure-store",
       [
-        "expo-build-properties",
+        "onesignal-expo-plugin",
         {
-          "android": {
-            "enableProguardInReleaseBuilds": true,
-            "enableMinifyInReleaseBuilds": true
-          }
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#000000"
+          "mode": "production",
+          "smallIcons": [
+            "./assets/images/notification_icon.png"
+          ]
         }
       ]
     ],

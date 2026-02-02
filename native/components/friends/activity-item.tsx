@@ -26,6 +26,7 @@ export default function ActivityItem({ activity, onPress }: ActivityItemProps) {
     if (activity.type === 'liked_season') actionText = "liked";
     if (activity.type === 'changed_poster') actionText = "changed the poster";
     if (activity.type === 'added_to_list') actionText = "added to list";
+    if (activity.type === 'watchlist_add') actionText = "added to watchlist";
 
     if (activity.review) {
         actionText = "reviewed";

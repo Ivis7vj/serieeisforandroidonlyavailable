@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { OneSignal } from 'react-native-onesignal';
 import * as AsyncStorage from '@react-native-async-storage/async-storage';
 // Some environments/builds prefer the default export, others the namespace. 
 const _AsyncStorage: any = (AsyncStorage as any).default || AsyncStorage;
@@ -20,7 +21,6 @@ import * as SecureStore from 'expo-secure-store';
 import { WarningModal } from '../components/security/WarningModal';
 import { BanOverlay } from '../components/security/BanOverlay';
 import RecoveryCodeModal from '../components/security/RecoveryCodeModal';
-import { notificationService } from '@/utils/notification-service';
 
 // --- Types ---
 export type BootState = 'BOOTING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
@@ -111,6 +111,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     SecureStore.setItemAsync('auth_uid', currentUser.uid).catch(() => { });
                     _AsyncStorage.setItem('auth_uid', currentUser.uid).catch(() => { });
 
+                    // OneSignal Sync
+                    // OneSignal Sync
+                    try {
+                        OneSignal.login(currentUser.uid);
+                        if (currentUser.email) {
+                            OneSignal.User.addEmail(currentUser.email);
+                        }
+                    } catch (e) {
+                        console.warn("OneSignal login/email sync failed:", e);
+                    }
+
                     if (unsubUserRef.current) unsubUserRef.current();
 
                     let warmupRun = false;
@@ -131,6 +142,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                     try {
                                         const { getUpNextData } = await import('../utils/up-next-service');
                                         await getUpNextData(currentUser.uid);
+                                        // Update lastActive timestamp
+                                        updateDoc(doc(db, 'users', currentUser.uid), {
+                                            lastActive: serverTimestamp()
+                                        }).catch(err => console.warn("Failed to update lastActive:", err));
                                     } catch (e) { }
                                 })();
                             }
@@ -191,25 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    // Push Notifications Effect
-    useEffect(() => {
-        if (authReady && user) {
-            notificationService.registerForPushNotificationsAsync(user.uid)
-                .then(async () => {
-                    const LAST_CHECK_KEY = `notif_check_${user.uid}`;
-                    const lastCheck = await _AsyncStorage.getItem(LAST_CHECK_KEY);
-                    const now = Date.now();
-                    const oneDay = 24 * 60 * 60 * 1000;
-
-                    if (!lastCheck || (now - parseInt(lastCheck)) > oneDay) {
-                        await notificationService.checkNewEpisodes(user.uid);
-                        await _AsyncStorage.setItem(LAST_CHECK_KEY, now.toString());
-                    }
-                    await notificationService.registerBackgroundFetch();
-                })
-                .catch(err => console.warn('Push automation failed', err));
-        }
-    }, [authReady, user]);
+    // Push Notifications Effect (REMOVED: Migrating to OneSignal)
 
     const refreshUserData = async () => {
         if (!user) return;
@@ -246,11 +243,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = async () => {
         try {
-            if (user) {
-                notificationService.removePushToken(user.uid).catch(() => { });
-            }
             await SecureStore.deleteItemAsync('auth_uid');
             await _AsyncStorage.removeItem('auth_uid');
+            try {
+                OneSignal.logout();
+            } catch (e) {
+                console.warn("OneSignal logout failed (likely missing native module):", e);
+            }
             await signOut(auth);
             setUserData(null);
             setBootState('UNAUTHENTICATED');

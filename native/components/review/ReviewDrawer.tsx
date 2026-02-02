@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { OneSignal } from 'react-native-onesignal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, MoreVertical, Trash2, Edit2, Share2, Flag, Share as ShareIcon, AlertTriangle } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
@@ -376,6 +377,9 @@ export default function ReviewDrawer({ visible, onClose, reviewData, onReviewCha
             }
 
             if (success) {
+                // OneSignal Tagging
+                OneSignal.User.addTag(`series_${tmdbId}`, "true");
+
                 if (type === 'season') {
                     await diaryService.createDiaryEntry(userId, { id: tmdbId, name: safeSeriesName, poster_path: posterPath }, seasonNum, { rating, review: safeReviewText, poster_path: posterPath });
                 }

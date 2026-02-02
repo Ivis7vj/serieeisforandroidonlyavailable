@@ -14,7 +14,6 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { LegalModal } from '@/components/settings/LegalModal';
 import { TERMS_OF_SERVICE, PRIVACY_POLICY } from '@/utils/legal-texts';
-import { notificationService } from '@/utils/notification-service';
 import { Bell, Tv, List, TrendingUp } from 'lucide-react-native';
 import { Switch } from 'react-native';
 
@@ -35,12 +34,6 @@ export default function SettingsScreen() {
         visible: false, title: '', content: ''
     });
 
-    const [notifSettings, setNotifSettings] = useState({
-        newEpisodes: true,
-        newSeasons: true,
-        weeklyPicks: false
-    });
-    const [isLoadingSettings, setIsLoadingSettings] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
 
     const handleSync = async () => {
@@ -63,31 +56,7 @@ export default function SettingsScreen() {
         if (params.openReport === 'true') {
             setIsReportOpen(true);
         }
-        loadSettings();
     }, [params.openReport, currentUser]);
-
-    const loadSettings = async () => {
-        if (!currentUser) return;
-        setIsLoadingSettings(true);
-        const settings = await notificationService.getSettings(currentUser.uid);
-        setNotifSettings(settings);
-        setIsLoadingSettings(false);
-    };
-
-    const toggleSetting = async (key: keyof typeof notifSettings) => {
-        if (!currentUser) return;
-        const newVal = !notifSettings[key];
-        setNotifSettings(prev => ({ ...prev, [key]: newVal }));
-        await notificationService.updateSettings(currentUser.uid, { [key]: newVal });
-    };
-
-    const requestNotifications = async () => {
-        if (!currentUser) return;
-        const token = await notificationService.registerForPushNotificationsAsync(currentUser.uid);
-        if (token) {
-            Alert.alert("Success", "Notifications enabled successfully.");
-        }
-    };
 
     const openLegal = (title: string, content: string) => {
         setLegalModal({ visible: true, title, content });
@@ -134,97 +103,7 @@ export default function SettingsScreen() {
             <View style={styles.content}>
                 <ScrollView showsVerticalScrollIndicator={false}>
 
-                    {/* Notifications Section */}
-                    <View style={styles.section}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                            <Text style={[styles.sectionHeader, { marginBottom: 0 }]}>NOTIFICATIONS</Text>
-                            <Pressable onPress={requestNotifications}>
-                                <Text style={{ color: '#aaa', fontSize: 12, fontWeight: '700' }}>ENABLE PUSH</Text>
-                            </Pressable>
-                        </View>
-
-                        <View style={styles.btnGroup}>
-                            <View style={styles.notifRow}>
-                                <View style={styles.notifLabel}>
-                                    <Tv size={22} color="#666" />
-                                    <View>
-                                        <Text style={styles.btnText}>New Episodes</Text>
-                                        <Text style={styles.btnSubtext}>Notify when new episodes are out</Text>
-                                    </View>
-                                </View>
-                                <Switch
-                                    value={notifSettings.newEpisodes}
-                                    onValueChange={() => toggleSetting('newEpisodes')}
-                                    trackColor={{ false: '#333', true: '#222' }}
-                                    thumbColor={notifSettings.newEpisodes ? '#FFF' : '#666'}
-                                />
-                            </View>
-
-                            <View style={styles.notifRow}>
-                                <View style={styles.notifLabel}>
-                                    <List size={22} color="#666" />
-                                    <View>
-                                        <Text style={styles.btnText}>New Seasons</Text>
-                                        <Text style={styles.btnSubtext}>Notify when new seasons air</Text>
-                                    </View>
-                                </View>
-                                <Switch
-                                    value={notifSettings.newSeasons}
-                                    onValueChange={() => toggleSetting('newSeasons')}
-                                    trackColor={{ false: '#333', true: '#222' }}
-                                    thumbColor={notifSettings.newSeasons ? '#FFF' : '#666'}
-                                />
-                            </View>
-
-                            <View style={styles.notifRow}>
-                                <View style={styles.notifLabel}>
-                                    <TrendingUp size={22} color="#666" />
-                                    <View>
-                                        <Text style={styles.btnText}>Weekly Picks</Text>
-                                        <Text style={styles.btnSubtext}>Sunday roundup of trending shows</Text>
-                                    </View>
-                                </View>
-                                <Switch
-                                    value={notifSettings.weeklyPicks}
-                                    onValueChange={() => toggleSetting('weeklyPicks')}
-                                    trackColor={{ false: '#333', true: '#222' }}
-                                    thumbColor={notifSettings.weeklyPicks ? '#FFF' : '#666'}
-                                />
-                            </View>
-
-                            <Pressable style={[styles.actionBtn, { marginTop: 10, alignSelf: 'flex-start' }]} onPress={async () => {
-                                if (!currentUser) return;
-
-                                setIsDeleting(true); // Re-using loading state or create new one? Let's verify quickly so no need for spinner.
-                                // Actually, let's just run it.
-
-                                const realNotif = await notificationService.checkNewEpisodes(currentUser.uid);
-
-                                import('expo-notifications').then(async (Notifications) => {
-                                    if (realNotif) {
-                                        await Notifications.scheduleNotificationAsync({
-                                            content: {
-                                                title: realNotif.title,
-                                                body: realNotif.body,
-                                                data: realNotif.data
-                                            },
-                                            trigger: {
-                                                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                                                seconds: 3
-                                            }
-                                        });
-                                        Alert.alert("Notification Scheduled", `Found match: ${realNotif.title}. Watch for it in 3 seconds!`);
-                                    } else {
-                                        Alert.alert("No New Episodes", "None of your subscribed shows have new episodes airing today. (This is real data!)");
-                                    }
-                                });
-                                setIsDeleting(false);
-                            }}>
-                                <Bell size={18} color="#FFCC00" />
-                                <Text style={[styles.btnText, { fontSize: 14, color: '#FFCC00' }]}>Test Notification (Real Data)</Text>
-                            </Pressable>
-                        </View>
-                    </View>
+                    {/* Notifications Section - REMOVED: Migrating to OneSignal */}
 
                     {/* Data Section */}
                     <View style={styles.section}>

@@ -115,8 +115,8 @@ const styles = StyleSheet.create({
         width: 180,
         height: 180,
         borderRadius: 90,
-        borderWidth: 6,
-        borderColor: '#FFCC00',
+        // borderWidth: 6,   <-- REMOVED
+        // borderColor: '#FFCC00', <-- REMOVED
         overflow: 'hidden',
         marginBottom: 20,
     },

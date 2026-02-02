@@ -41,8 +41,34 @@ const StickerShare = forwardRef<ViewShot, StickerShareProps>(({
     return (
         <ViewShot ref={ref} options={{ format: 'png', quality: 1 }}>
             <View style={styles.container}>
-                {/* TOP: Profile Picture */}
-                <View style={styles.usernameContainer}>
+                {/* WRAPPER for PFP positioning */}
+                <View style={styles.posterWrapper}>
+                    {/* POSTER with Branding Overlay */}
+                    <View style={styles.posterContainer}>
+                        <Image
+                            source={{ uri: posterUrl }}
+                            style={styles.posterImage}
+                            contentFit="cover"
+                            onLoad={() => onImageLoad?.()}
+                            onError={() => onImageLoad?.()}
+                        />
+
+                        {/* BRANDING OVERLAY (Inside Poster) */}
+                        <LinearGradient
+                            colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,1)']}
+                            style={styles.brandingOverlay}
+                        >
+                            <Text style={styles.reviewedOn}>reviewed on</Text>
+                            <View style={styles.brandLogo}>
+                                <Text style={styles.brandS}>S</Text>
+                                <Text style={styles.brandRest}>ERIEE</Text>
+                            </View>
+                        </LinearGradient>
+
+                        {/* RATING BADGE REMOVED */}
+                    </View>
+
+                    {/* TOP: Profile Picture (Absolute) - Moved AFTER poster for Z-Index */}
                     {user?.photoURL ? (
                         <Image
                             source={{ uri: user.photoURL }}
@@ -50,37 +76,6 @@ const StickerShare = forwardRef<ViewShot, StickerShareProps>(({
                             contentFit="cover"
                         />
                     ) : null}
-                </View>
-
-                {/* POSTER with Branding Overlay */}
-                <View style={styles.posterContainer}>
-                    <Image
-                        source={{ uri: posterUrl }}
-                        style={styles.posterImage}
-                        contentFit="cover"
-                        onLoad={() => onImageLoad?.()}
-                        onError={() => onImageLoad?.()}
-                    />
-
-
-
-                    {/* BRANDING OVERLAY (Inside Poster) */}
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,1)']}
-                        style={styles.brandingOverlay}
-                    >
-                        <Text style={styles.reviewedOn}>reviewed on</Text>
-                        <View style={styles.brandLogo}>
-                            <Text style={styles.brandS}>S</Text>
-                            <Text style={styles.brandRest}>ERIEE</Text>
-                        </View>
-                    </LinearGradient>
-
-                    {/* RATING BADGE (Bottom Right) */}
-                    <View style={styles.ratingBadgePoster}>
-                        <FontAwesome name="star" size={28} color="#FFD600" />
-                        <Text style={styles.ratingTextPoster}>{normalizedRating.toFixed(1)}</Text>
-                    </View>
                 </View>
 
                 {/* SERIES TITLE (Below Poster) */}
@@ -121,7 +116,7 @@ const StickerShare = forwardRef<ViewShot, StickerShareProps>(({
                     </Text>
                 </View>
 
-                {/* MANDATORY FOOTER - Removed Text as per request */}
+                {/* MANDATORY FOOTER */}
                 <View style={[styles.footer, { height: 20 }]} />
             </View>
         </ViewShot>
@@ -138,16 +133,23 @@ const styles = StyleSheet.create({
         paddingHorizontal: 60,
         paddingVertical: 100,
     },
-    usernameContainer: {
-        marginBottom: 60,
-        width: '100%',
-        alignItems: 'center',
+    posterWrapper: {
+        position: 'relative',
+        marginBottom: 70,
+        alignItems: 'center', // Centers PFP horizontally
+        marginTop: 60, // Space for PFP poking out
     },
     pfpImage: {
+        position: 'absolute',
+        top: -90, // Half of height (180/2) to sit on top edge
         width: 180,
         height: 180,
         borderRadius: 90,
         backgroundColor: '#1a1a1a',
+        zIndex: 100,
+        elevation: 25, // Higher than poster (20)
+        borderWidth: 6,
+        borderColor: '#000', // Matches background to look "cut out" or attached
     },
     posterContainer: {
         width: 780,
@@ -164,27 +166,12 @@ const styles = StyleSheet.create({
         shadowRadius: 100,
         // Elevation (Android)
         elevation: 20,
-        marginBottom: 70,
     },
     posterImage: {
         width: '100%',
         height: '100%',
     },
-    badge: {
-        position: 'absolute',
-        bottom: 310,
-        left: 40,
-        backgroundColor: 'rgba(255, 214, 0, 0.9)',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        zIndex: 2,
-    },
-    badgeText: {
-        fontSize: 24,
-        fontFamily: 'Anton-Regular',
-        includeFontPadding: false,
-        fontWeight: '900',
-    },
+    // Badge styles removed
     brandingOverlay: {
         position: 'absolute',
         bottom: 0,
@@ -220,25 +207,6 @@ const styles = StyleSheet.create({
         fontSize: 64,
         color: '#ffffff',
         letterSpacing: 5,
-    },
-    ratingBadgePoster: {
-        position: 'absolute',
-        bottom: 20,
-        right: 20,
-        backgroundColor: '#000',
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
-        gap: 8,
-        zIndex: 10,
-    },
-    ratingTextPoster: {
-        color: '#FFF',
-        fontSize: 28,
-        fontWeight: '900',
-        fontFamily: 'Anton-Regular',
     },
     seriesTitle: {
         fontFamily: 'Anton-Regular',

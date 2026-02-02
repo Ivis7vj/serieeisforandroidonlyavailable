@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, Redirect } from 'expo-router';
-import { NotificationToast } from '@/components/NotificationToast';
+import { OneSignal, LogLevel } from 'react-native-onesignal';
 import LoginScreen from './login';
 import { UpdateService, UpdateInfo } from '../src/services/UpdateService';
 import { UpdatePopup } from '../src/components/updates/UpdatePopup';
@@ -18,7 +18,6 @@ import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useEffect, useState, useRef } from 'react';
 import { usePathname, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as Notifications from 'expo-notifications';
 import * as Network from 'expo-network';
 import { NetworkBlocker } from '@/components/security/NetworkBlocker';
 
@@ -57,8 +56,6 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastContent, setToastContent] = useState({ title: '', message: '' });
   const [isOffline, setIsOffline] = useState(false);
 
   const [showMonthEndPopup, setShowMonthEndPopup] = useState(false);
@@ -144,6 +141,49 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
     return () => clearInterval(interval);
   }, []);
 
+  // 🛡️ OneSignal Initialization
+  useEffect(() => {
+    try {
+      // Remove this log level setting before release
+      OneSignal.Debug.setLogLevel(LogLevel.Verbose);
+
+      // OneSignal Initialization
+      OneSignal.initialize("dd9fbfd4-3267-443e-9331-9e8c8d482692");
+
+      // Also request permission (optional here, can be elsewhere)
+      OneSignal.Notifications.requestPermission(true);
+
+      // Listener for notification clicks
+      OneSignal.Notifications.addEventListener('click', (event: any) => {
+        console.log('OneSignal: notification clicked:', event);
+        const data: any = event.notification.additionalData;
+        if (data?.route) {
+          let path = data.route;
+          if (data.season) path += `?season=${data.season}`;
+          if (data.episode) path += `&episode=${data.episode}`;
+          console.log('[OneSignal] Navigating to:', path);
+          router.push(path as any);
+        }
+      });
+    } catch (e) {
+      console.warn("OneSignal initialization failed (likely missing native module):", e);
+    }
+  }, []);
+
+  // 🆔 OneSignal User Identification
+  useEffect(() => {
+    try {
+      if (currentUser?.uid) {
+        OneSignal.login(currentUser.uid);
+        if (currentUser.email) {
+          OneSignal.User.addEmail(currentUser.email);
+        }
+      }
+    } catch (e) {
+      console.warn("OneSignal user sync failed:", e);
+    }
+  }, [currentUser?.uid]);
+
 
   const isAtLogin = pathname.includes('/login');
   const isAtTabs = pathname.includes('(tabs)') || pathname === '/';
@@ -169,38 +209,7 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
   // For now, removing the toast logic on Registration to simplify. 
   // User didn't strictly ask for the toast, just "Notifications work reliably".
 
-  // Handle Incoming Notifications (In-App)
-  useEffect(() => {
-    // When app is open and notification arrives
-    const subscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('[Root] Notification received in foreground');
-      const { title, body } = notification.request.content;
-      setToastContent({
-        title: title || 'New Notification',
-        message: body || 'Check the app for updates.'
-      });
-      setToastVisible(true);
-    });
-    return () => subscription.remove();
-  }, []);
-
-  // Handle Notification Responses
-  useEffect(() => {
-    const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      const data = response.notification.request.content.data;
-      if (data?.route) {
-        // Example route: /series/123?season=1&episode=4
-        let path = data.route;
-        if (data.season) path += `?season=${data.season}`;
-        if (data.episode) path += `&episode=${data.episode}`;
-
-        console.log('[NotificationListener] Navigating to:', path);
-        router.push(path as any);
-      }
-    });
-
-    return () => subscription.remove();
-  }, []);
+  // Handle Incoming Notifications (In-App) - REMOVED: Migrating to OneSignal
 
   // Branded Transition Screen: Prevent "Flash" of wrong screens while loading
   // 🛡️ STRICT AUTH GATE: Never mount the Stack until Firebase is ready
@@ -289,12 +298,6 @@ function RootLayoutNav({ appReady }: { appReady: boolean }) {
           />
           <Stack.Screen name="review/index" options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
-        <NotificationToast
-          visible={toastVisible}
-          title={toastContent.title}
-          message={toastContent.message}
-          onHide={() => setToastVisible(false)}
-        />
         <NetworkBlocker
           isVisible={isOffline}
           onCancel={() => setIsOffline(false)}
@@ -335,7 +338,6 @@ export default function RootLayout() {
   // This fixes the "Lag at splash screen" issue. 
   const [fontTimeout, setFontTimeout] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
 
   useEffect(() => {
     UpdateService.checkForUpdate().then(info => {
@@ -344,21 +346,7 @@ export default function RootLayout() {
   }, []);
 
 
-  // 🛡️ Notification Permissions
-  useEffect(() => {
-    const requestPermissions = async () => {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') {
-        console.log('Root: Failed to get permissions for push notifications!');
-      }
-    };
-    requestPermissions();
-  }, []);
+  // 🛡️ Notification Permissions (REMOVED: Migrating to OneSignal)
 
   useEffect(() => {
     console.log('Root: Layout mounted');

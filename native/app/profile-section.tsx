@@ -676,10 +676,34 @@ export default function ProfileSectionScreen() {
 
     const getFilteredEntries = () => {
         if (selectedMonth === null || selectedYear === null || !profileData?.diary) return [];
-        return profileData.diary.filter((item: any) => {
+
+        // 1. Filter by Date
+        const rawEntries = profileData.diary.filter((item: any) => {
             const d = new Date(item.date);
             return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
-        }).map((item: any) => {
+        });
+
+        // 2. Sort by Date Descending (Newest First) to keep the latest entry
+        rawEntries.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // 3. Deduplicate (Unique Season per Series OR Unique Movie)
+        const uniqueEntries: any[] = [];
+        const seen = new Set();
+
+        for (const item of rawEntries) {
+            // If season exists, unique by TMDB_ID + Season. If movie, unique by TMDB_ID.
+            const key = item.seasonNumber !== undefined && item.seasonNumber !== null
+                ? `${item.tmdbId}_S${item.seasonNumber}`
+                : `${item.tmdbId}`;
+
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueEntries.push(item);
+            }
+        }
+
+        // 4. Map to Display Format
+        return uniqueEntries.map((item: any) => {
             // Robustly resolve the TMDB default path
             const rawPoster = item.seasonPoster || item.season_poster_path || item.poster_path || item.posterPath;
 
