@@ -1,153 +1,341 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download SERIEE - Android App</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Anton&family=Outfit:wght@400;700&family=Poppins:wght@400;700&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --primary: #FFCC00;
-            --background: #000000;
-            --text: #FFFFFF;
-            --card-bg: #111111;
-        }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SERIEE - Download</title>
 
-        body {
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(-45deg, #000000, #1a1a1a, #000000, #111111);
-            background-size: 400% 400%;
-            animation: gradient 15s ease infinite;
-            color: var(--text);
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            text-align: center;
-            overflow: hidden;
-        }
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&display=swap" rel="stylesheet">
 
-        @keyframes gradient {
-            0% {
-                background-position: 0% 50%;
-            }
+<style>
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
 
-            50% {
-                background-position: 100% 50%;
-            }
+body{
+  background:#000;
+  color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
 
-            100% {
-                background-position: 0% 50%;
-            }
-        }
+/* HEADER */
+header{
+  padding:18px 20px;
+  border-top:1px solid #111;
+  border-bottom:1px solid #111;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:#000;
+  position:sticky;
+  top:0;
+  z-index:100;
+}
 
-        .container {
-            padding: 2.5rem;
-            width: 85%;
-            max-width: 450px;
-            background: rgba(17, 17, 17, 0.8);
-            backdrop-filter: blur(10px);
-            border-radius: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        }
+.logo{
+  font-family:'Anton',sans-serif;
+  font-size:28px;
+  letter-spacing:3px;
+}
 
-        h1 {
-            font-family: 'Anton', sans-serif;
-            font-size: 4.5rem;
-            margin: 0;
-            margin-bottom: 2rem;
-            letter-spacing: 2px;
-            line-height: 1;
-        }
+.logo span:first-child{
+  color:#FFD600;
+}
 
-        h1 .s {
-            color: var(--primary);
-        }
+.logo span:not(:first-child){
+  color:#fff;
+}
 
-        h1 .eriee {
-            color: #FFFFFF;
-        }
+.install-btn{
+  background:#FFD600;
+  color:#000;
+  padding:10px 22px;
+  border-radius:4px;
+  font-weight:bold;
+  cursor:pointer;
+  transition:.3s;
+  border:1px solid #FFD600;
+}
 
-        p {
-            color: #888;
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-        }
+.install-btn:hover{
+  background:#fff;
+}
 
-        .download-btn {
-            display: inline-block;
-            background-color: var(--primary);
-            color: #000;
-            padding: 1.2rem 2.5rem;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 1.2rem;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 10px 20px rgba(255, 204, 0, 0.2);
-        }
+/* HERO */
+.hero{
+  padding:45px 20px 30px 20px;
+  text-align:center;
+  border-bottom:1px solid #111;
+}
 
-        .download-btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 30px rgba(255, 204, 0, 0.4);
-        }
+.hero-logo{
+  font-family:'Anton',sans-serif;
+  font-size:64px;
+  letter-spacing:6px;
+  margin-bottom:15px;
+}
 
-        .version {
-            margin-top: 1.5rem;
-            font-size: 0.9rem;
-            color: #555;
-        }
+.hero-logo span:first-child{
+  color:#FFD600;
+}
 
-        .steps {
-            text-align: left;
-            margin-top: 2rem;
-            font-size: 0.9rem;
-            color: #aaa;
-            border-top: 1px solid #222;
-            padding-top: 1.5rem;
-        }
+.hero-logo span:not(:first-child){
+  color:#fff;
+}
 
-        .steps ul {
-            padding-left: 1.2rem;
-        }
+.hero p{
+  font-size:16px;
+  font-weight:600;
+  color:#ccc;
+  max-width:600px;
+  margin:0 auto 8px auto;
+}
 
-        .steps li {
-            margin-bottom: 0.5rem;
-        }
-    </style>
+/* SECTION */
+.section{
+  padding:35px 20px;
+  border-bottom:1px solid #111;
+}
+
+.section-title{
+  font-family:'Archivo Black',sans-serif;
+  font-size:24px;
+  margin-bottom:18px;
+}
+
+.section-title span{
+  color:#FFD600;
+}
+
+.section p{
+  font-size:15px;
+  font-weight:600;
+  color:#ccc;
+  margin-bottom:10px;
+}
+
+/* FEATURES */
+.features{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.feature{
+  border:1px solid #222;
+  padding:16px;
+  border-radius:6px;
+  transition:.3s;
+}
+
+.feature:hover{
+  border-color:#FFD600;
+}
+
+.feature h4{
+  font-weight:bold;
+  margin-bottom:6px;
+}
+
+.feature h4 span{
+  color:#FFD600;
+}
+
+.feature p{
+  font-size:14px;
+  color:#aaa;
+  font-weight:500;
+}
+
+/* EXTRA CONTENT BLOCK */
+.content-block{
+  margin-bottom:18px;
+}
+
+.content-block h3{
+  font-family:'Archivo Black',sans-serif;
+  font-size:20px;
+  margin-bottom:8px;
+}
+
+.content-block h3 span{
+  color:#FFD600;
+}
+
+.content-block p{
+  font-size:14px;
+  color:#aaa;
+  line-height:1.6;
+}
+
+/* DOWNLOAD */
+.download-section{
+  text-align:center;
+  padding:40px 20px;
+  border-bottom:1px solid #111;
+}
+
+.download-btn{
+  background:#FFD600;
+  color:#000;
+  padding:16px 60px;
+  font-size:18px;
+  font-weight:bold;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  transition:.3s;
+}
+
+.download-btn:hover{
+  transform:scale(1.05);
+  box-shadow:0 0 25px rgba(255,214,0,.5);
+}
+
+/* POPUP */
+.popup{
+  position:fixed;
+  bottom:25px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#000;
+  border:1px solid #fff;
+  padding:12px 24px;
+  display:none;
+  font-size:14px;
+}
+
+/* FOOTER */
+footer{
+  padding:30px 20px;
+  text-align:center;
+  font-size:13px;
+  color:#777;
+  border-top:1px solid #111;
+  border-bottom:1px solid #111;
+}
+
+footer span{
+  color:#FFD600;
+}
+
+.instagram{
+  margin-top:14px;
+}
+
+.instagram img{
+  width:18px;
+  filter:grayscale(100%) brightness(200%);
+  cursor:pointer;
+  transition:.3s;
+}
+
+.instagram img:hover{
+  filter:none;
+}
+</style>
 </head>
 
 <body>
-    <div class="container">
-        <h1><span class="s">S</span><span class="eriee">ERIEE</span></h1>
 
-        <a href="https://github.com/Ivis7vj/serieeisforandroidonlyavailable/releases/download/v3.0.1/app-release.apk"
-            download class="download-btn">
-            Download APK v4.0.0
-        </a>
+<header>
+  <div class="logo">
+    <span>S</span><span>ERIEE</span>
+  </div>
+  <div class="install-btn" onclick="downloadApp()">Download</div>
+</header>
 
-        <div class="version">Size: ~110MB | Requires: Android 8.0+</div>
+<section class="hero">
+  <div class="hero-logo">
+    <span>S</span><span>ERIEE</span>
+  </div>
+  <p>The beta version of SERIEE is ready for download.</p>
+  <p>Track your series. Rate every episode. Build your legacy.</p>
+</section>
 
-        <div class="steps">
-            <strong>How to install:</strong>
-            <ul>
-                <li>Download the APK file.</li>
-                <li>Open the file on your device.</li>
-                <li>Enable "Install from Unknown Sources" if prompted.</li>
-                <li>Enjoy tracking your favorite series!</li>
-                <li>Click update if you instaled our old version</li>
-            </ul>
-        </div>
+<section class="section">
+  <div class="section-title">Why <span>SERIEE</span>?</div>
+
+  <div class="features">
+
+    <div class="feature">
+      <h4><span>01.</span> Structured Tracking</h4>
+      <p>Organize episodes, seasons, ratings and reviews with precision.</p>
     </div>
-</body>
 
+    <div class="feature">
+      <h4><span>02.</span> Professional Review System</h4>
+      <p>Half-star rating precision and shareable review posters.</p>
+    </div>
+
+    <div class="feature">
+      <h4><span>03.</span> Community Focused</h4>
+      <p>Discover what your circle watches without distractions.</p>
+    </div>
+
+    <div class="feature">
+      <h4><span>04.</span> Lightweight & Secure</h4>
+      <p>Optimized architecture with minimal storage overhead.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-title">Designed for <span>Serious Viewers</span></div>
+
+  <div class="content-block">
+    <h3><span>Track Smarter</span></h3>
+    <p>Never forget where you stopped. Maintain your personal episode log across seasons.</p>
+  </div>
+
+  <div class="content-block">
+    <h3><span>Rate Precisely</span></h3>
+    <p>Every half star counts. Capture how you truly feel about each episode.</p>
+  </div>
+
+  <div class="content-block">
+    <h3><span>Build Legacy</span></h3>
+    <p>Your reviews stay organized and visible inside a premium black interface.</p>
+  </div>
+
+</section>
+
+<section class="download-section">
+  <button class="download-btn" onclick="downloadApp()">
+    Download SERIEE v1.0.0
+  </button>
+</section>
+
+<div class="popup" id="installPopup">
+  SERIEE Installed 🎊
+</div>
+
+<footer>
+  Developed by: <span>Destroyer</span><br>
+  Contact: serieeofficial@gmail.com<br>
+  Data provided by TMDB<br>
+
+  <div class="instagram">
+    <a href="https://www.instagram.com/serieetales?igsh=cGtkOHl4MXBpbmhy" target="_blank">
+      <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" />
+    </a>
+  </div>
+</footer>
+
+<script>
+function downloadApp(){
+  const
+  apkUrl="https://github.com/Ivis7vj/serieeisforandroidonlyavailable/releases/download/v3.0.1/app-release.apk";
+  window.location.href=apkUrl;
+
+  const popup=document.getElementById("installPopup");
+  popup.style.display="block";
+  setTimeout(()=>{popup.style.display="none";},2500);
+}
+</script>
+
+</body>
 </html>
